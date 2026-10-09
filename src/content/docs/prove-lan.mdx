@@ -1,0 +1,300 @@
+---
+title: Prove the LAN loop
+description: End-to-end checklist — BOOT to green RGB through the core, plus chip-temperature telemetry every 10 s — before you wire AWS consumers.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import ProveLoopDiagram from "@/components/ProveLoopDiagram.astro";
+import Esp32S3DevkitDiagram from "@/components/Esp32S3DevkitDiagram.astro";
+
+## What you are proving
+
+Two LAN behaviours, both required before Act 2:
+
+1. **Closed loop** — BOOT on a zone → `gg-edge/sensor` → `GgEdgeLoop` →
+   `gg-edge/actuator/<thing>` → that zone’s RGB **green** on press, **off** on
+   release. Other zones stay dark.
+2. **Telemetry** — each board publishes chip temperature every 10 s on
+   `gg-edge/telemetry/<thing>`. The local loop does not subscribe to it; Act 2
+   archives, alarms, and trains on it.
+
+<ProveLoopDiagram />
+
+<table>
+  <thead>
+    <tr>
+      <th>Topic</th>
+      <th>Who publishes</th>
+      <th>Who consumes on the LAN</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <code>gg-edge/sensor</code>
+      </td>
+      <td>ESP32-S3 (BOOT press / release)</td>
+      <td>
+        <code>com.example.GgEdgeLoop</code> (via bridge LocalMqtt → Pubsub)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>gg-edge/actuator/&lt;thing&gt;</code>
+      </td>
+      <td>
+        <code>GgEdgeLoop</code>
+      </td>
+      <td>That zone’s firmware (RGB)</td>
+    </tr>
+    <tr>
+      <td>
+        <code>gg-edge/telemetry/&lt;thing&gt;</code>
+      </td>
+      <td>ESP32-S3 (every 10 s)</td>
+      <td>
+        Nobody on the core yet — prove it on serial; Act 2 adds consumers
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+RGB colors in this lab: **green** = button loop (this page), **blue** = cloud
+command (Act 2), **red** = edge model (Act 2). `GgEdgeLoop` **1.0.1** does not
+send a `color` field; the firmware defaults to green.
+
+## Board: button and RGB
+
+Use an <Tooltip term="esp32-s3" label="ESP32-S3" /> **DevKitC-1** (or equivalent).
+
+<Esp32S3DevkitDiagram />
+
+<Aside type="caution">
+Firmware must be the build from <a href="/flash/">Flash zones</a> (chip temp +
+RGB colors). Rebuild if the board still has button on GPIO 9, RGB on the wrong
+pin, or no <code>telemetry</code> lines. Defaults: BOOT = GPIO 0; RGB = GPIO 48
+(DevKitC-1 v1.0) or 38 (v1.1).
+</Aside>
+
+## Success path
+
+1. <Tooltip term="nucleus" label="Nucleus" /> healthy;{" "}
+   <Tooltip term="client-auth" label="Auth" />,{" "}
+   <Tooltip term="moquette" label="Moquette" />, Bridge,{" "}
+   <Tooltip term="ip-detector" label="IPDetector" />, Cli,{" "}
+   `com.example.GgEdgeLoop` **RUNNING** (**1.0.1**).
+2. Each zone’s serial shows discovery → `mqtt connected to core` → subscribe to
+   its actuator topic → a <code>telemetry</code> JSON line every ~10 s.
+3. Press **BOOT** on one board.
+4. NUC loop log shows sensor + actuator for **that** thing only.
+5. That board’s RGB turns **green** on press, **off** on release. The other
+   zone stays dark.
+6. Optional: <Tooltip term="iot-core" label="IoT Core" /> MQTT test client on
+   `gg-edge/sensor` and `gg-edge/actuator/+` (current bridge maps those).
+   Telemetry is **not** bridged to IoT Core until
+   [Deploy from the cloud](/deploy-cloud/).
+7. Optional second board: press its **BOOT** — only that board’s RGB responds.
+
+## 1. Core and component
+
+### Core HEALTHY
+
+```bash frame="terminal"
+aws greengrassv2 list-core-devices --status HEALTHY \
+  --query "coreDevices[?coreDeviceThingName=='${CORE_THING_NAME}'].[coreDeviceThingName,status]" \
+  --output text
+```
+
+```text
+gg-edge-wt-dev-core	HEALTHY
+```
+
+### GgEdgeLoop 1.0.1 RUNNING (on the NUC)
+
+```bash frame="terminal"
+sudo /greengrass/v2/bin/greengrass-cli component list | grep -A2 GgEdgeLoop
+```
+
+```text
+Component Name: com.example.GgEdgeLoop
+    Version: 1.0.1
+    State: RUNNING
+```
+
+## 2. Telemetry on the zone
+
+`idf.py -p /dev/ttyACM0 monitor` (or your port). Skip pasting the discovery
+JSON’s CA PEM into tickets — the host:port line is enough. Example logs use
+`192.0.2.10` for the NUC; your discovery address will be the core’s real LAN IP.
+
+```text
+I (257) gg-edge: RGB strip on GPIO 48 — boot blink
+I (1007) gg-edge: RGB -> off
+I (2217) gg-edge: chip temperature sensor ready: 28.9 C
+I (3017) gg-edge: wifi connected
+I (4197) gg-edge: discovered core 192.0.2.10:8883
+I (4197) gg-edge: mqtt connected to core
+I (4197) gg-edge: subscribed gg-edge/actuator/gg-edge-wt-dev-esp32-1
+I (13207) gg-edge: telemetry {"thing":"gg-edge-wt-dev-esp32-1","tempC":28.90,"rssi":-29,"uptimeS":13,"rgb":"off"} msg_id=0
+I (23207) gg-edge: telemetry {"thing":"gg-edge-wt-dev-esp32-1","tempC":28.90,"rssi":-29,"uptimeS":23,"rgb":"off"} msg_id=0
+```
+
+Pass criteria:
+
+- `chip temperature sensor ready` once at boot
+- a <code>telemetry</code> JSON line about every 10 s
+- `thing` matches the board’s Thing name
+- `tempC` is a few degrees above room temperature (die sensor, coarse steps)
+- `rgb` is `"off"` when the LED is clear
+
+Repeat on the second zone if you have one — expect a different baseline
+`tempC` (for example ~28.9 °C vs ~26.5 °C on the bench).
+
+## 3. Button → green RGB
+
+### NUC — component log
+
+```bash frame="terminal"
+sudo tail -f /greengrass/v2/logs/com.example.GgEdgeLoop.log
+```
+
+Press and release **BOOT** on `esp32-1`:
+
+```text
+2026-10-09T19:50:36.780Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:sensor event: {"event":"press","thing":"gg-edge-wt-dev-esp32-1"}. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+2026-10-09T19:50:36.785Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:published actuator command on gg-edge/actuator/gg-edge-wt-dev-esp32-1: {'state': 'on', 'source': 'com.example.GgEdgeLoop', 'target': 'gg-edge-wt-dev-esp32-1', 'echo': {'event': 'press', 'thing': 'gg-edge-wt-dev-esp32-1'}}. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+2026-10-09T19:50:36.928Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:sensor event: {"event":"release","thing":"gg-edge-wt-dev-esp32-1"}. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+2026-10-09T19:50:36.931Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:published actuator command on gg-edge/actuator/gg-edge-wt-dev-esp32-1: {'state': 'off', 'source': 'com.example.GgEdgeLoop', 'target': 'gg-edge-wt-dev-esp32-1', 'echo': {'event': 'release', 'thing': 'gg-edge-wt-dev-esp32-1'}}. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+```
+
+Pass criteria in those lines:
+
+- `thing` / `target` match the board you pressed
+- topic is `gg-edge/actuator/<that-thing>` (not a bare `gg-edge/actuator`)
+- `state` is `on` for press and `off` for release
+- no `color` field yet (firmware still paints green)
+
+### ESP32-S3 — serial (same press)
+
+```text
+I (45102) gg-edge: published sensor event=press msg_id=12
+I (45118) gg-edge: actuator msg on gg-edge/actuator/gg-edge-wt-dev-esp32-1: {"state": "on", "source": "com.example.GgEdgeLoop", "target": "gg-edge-wt-dev-esp32-1", "echo": {"event": "press", "thing": "gg-edge-wt-dev-esp32-1"}}
+I (45120) gg-edge: RGB -> green (on)
+I (45340) gg-edge: published sensor event=release msg_id=13
+I (45355) gg-edge: actuator msg on gg-edge/actuator/gg-edge-wt-dev-esp32-1: {"state": "off", "source": "com.example.GgEdgeLoop", "target": "gg-edge-wt-dev-esp32-1", "echo": {"event": "release", "thing": "gg-edge-wt-dev-esp32-1"}}
+I (45356) gg-edge: RGB -> off
+```
+
+The next telemetry line should show `"rgb":"off"` again after release. While you
+hold BOOT it may show `"rgb":"green"`.
+
+Do not paste device certs or private keys into tickets or docs.
+
+### Second zone (optional)
+
+Press **BOOT** on `gg-edge-wt-dev-esp32-2`. NUC log should show that thing only:
+
+```text
+INFO:GgEdgeLoop:sensor event: {"event":"press","thing":"gg-edge-wt-dev-esp32-2"}
+INFO:GgEdgeLoop:published actuator command on gg-edge/actuator/gg-edge-wt-dev-esp32-2: {'state': 'on', 'source': 'com.example.GgEdgeLoop', 'target': 'gg-edge-wt-dev-esp32-2', 'echo': {'event': 'press', 'thing': 'gg-edge-wt-dev-esp32-2'}}
+```
+
+`esp32-1` serial must **not** show an actuator message for that press.
+
+## Checklist
+
+<table>
+  <thead>
+    <tr>
+      <th>Check</th>
+      <th>Pass?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <code>list-core-devices</code> shows HEALTHY
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>
+        <code>GgEdgeLoop</code> 1.0.1 RUNNING
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Discovery JSON lists core host:8883</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>
+        Serial: <code>mqtt connected to core</code> →{" "}
+        <code>subscribed gg-edge/actuator/&lt;thing&gt;</code>
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>
+        Serial: <code>chip temperature sensor ready</code> and{" "}
+        <code>telemetry</code> JSON every ~10 s
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>BOOT press publishes sensor event for that thing</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>
+        Component log publishes to <code>gg-edge/actuator/&lt;thing&gt;</code>
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>
+        Onboard RGB <strong>green</strong> on press, off on release (that board
+        only)
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Other zone RGB stays off for that press</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>
+        IoT Core sees <code>gg-edge/sensor</code> /{" "}
+        <code>gg-edge/actuator/+</code> (optional)
+      </td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
+<Aside type="tip">
+When the LAN path works but the console is quiet, the local{" "}
+<Tooltip term="closed-loop" label="closed loop" /> is still valid — fix cloud
+mapping last. Missing <code>telemetry</code> lines means the board is on an old
+firmware build; reflash from <a href="/flash/">Flash zones</a>.
+</Aside>
+
+<Aside type="note">
+This lab’s broker is Moquette, not Mosquitto. Prefer component logs + serial +
+IoT console mirror over <code>mosquitto_sub</code>. Auth resources or bridge
+topic mapping issues → [Troubleshooting](/troubleshooting/). Bridge must map{" "}
+<code>gg-edge/actuator/+</code> (Pubsub → LocalMqtt), not a bare{" "}
+<code>gg-edge/actuator</code>, or zone RGB will stay dark after the per-thing
+firmware change.
+</Aside>
+
+## Next
+
+So far the cloud may mirror sensor/actuator, but **nothing consumes telemetry**.
+Act **2 · Wire into AWS** starts next: deploy the stack from S3 (adds telemetry
+bridge routes + LogManager), archive readings, keep zone state, raise an alarm,
+drive the RGB blue from a Lambda, and run a SageMaker-trained model on the core
+(red RGB).
+
+Next: [Architecture](/architecture/).

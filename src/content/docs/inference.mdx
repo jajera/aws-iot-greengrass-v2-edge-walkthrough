@@ -1,0 +1,420 @@
+---
+title: Edge inference
+description: SageMaker trains per-zone anomaly models on the S3 archive; Greengrass runs ONNX on the core — red RGB before the cloud alarm.
+---
+
+import Tooltip from "@/components/Tooltip.astro";
+import InferenceDiagram from "@/components/InferenceDiagram.astro";
+
+<InferenceDiagram />
+
+The cloud alarm takes minutes and needs the internet. This page closes the
+loop with ML: the cloud learns what “normal” looks like for each zone, and the{" "}
+<Tooltip term="core-device" label="core" /> applies that knowledge locally
+within seconds. The three pieces:
+
+<table>
+  <thead>
+    <tr>
+      <th>Piece</th>
+      <th>File</th>
+      <th>What it does</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Training script</td>
+      <td>
+        <code>artifacts/ml/zone-anomaly/train.py</code>
+      </td>
+      <td>
+        Fits a one-component Gaussian mixture per zone on <code>tempC</code>,
+        skipping the first 5 minutes after boot. Threshold at 4 σ; ONNX outputs{" "}
+        <code>score_samples</code> (log-likelihood).
+      </td>
+    </tr>
+    <tr>
+      <td>Training job</td>
+      <td>
+        <code>artifacts/ml/zone-anomaly/training-job.json</code>
+      </td>
+      <td>
+        SageMaker scikit-learn container in script mode; S3{" "}
+        <code>telemetry/</code> as the <code>train</code> channel
+      </td>
+    </tr>
+    <tr>
+      <td>Edge component</td>
+      <td>
+        <code>ZoneAnomaly-1.0.0</code> + <code>infer.py</code>
+      </td>
+      <td>
+        Scores every telemetry message. Two consecutive anomalies turn the RGB
+        red; two normal readings clear it.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+SageMaker Edge Manager is **not** used; it was discontinued
+([Edge Manager EOL](https://docs.aws.amazon.com/sagemaker/latest/dg/edge-eol.html)).
+A custom component plus ONNX is the path AWS describes for
+[ML inference on Greengrass](https://docs.aws.amazon.com/greengrass/v2/developerguide/perform-machine-learning-inference.html).
+
+## 1. Session variables
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+export GG_EDGE_ALLOW_AWS=1
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ARTIFACT_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-gg-artifacts-${AWS_ACCOUNT_ID}"
+DATA_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-gg-data-${AWS_ACCOUNT_ID}"
+RULE_PREFIX=$(echo "${PROJECT_NAME}_${ENVIRONMENT}" | tr '-' '_')
+IOT_RULE_ROLE_ARN=$(aws iam get-role --role-name "${PROJECT_NAME}-${ENVIRONMENT}-iot-rules" \
+  --query Role.Arn --output text)
+ZONE_TABLE="${ZONE_TABLE:-${PROJECT_NAME}-${ENVIRONMENT}-zone-state}"
+SAGEMAKER_ROLE="${PROJECT_NAME}-${ENVIRONMENT}-sagemaker-training"
+CORE_THING_GROUP_ARN=$(aws iot describe-thing-group \
+  --thing-group-name "$CORE_THING_GROUP" --query thingGroupArn --output text)
+```
+
+```text
+(no output)
+```
+
+## 2. Enough normal data
+
+Leave the zones alone, with no thumbs or hair dryer, for at least 25 minutes
+after [Archive telemetry](/archive/) started. The script needs 120 readings
+per zone taken after the first 5 minutes of uptime.
+
+```bash frame="terminal"
+for t in $CLIENT_THING_NAME ${CLIENT_THING_NAME_2:-}; do
+  echo "$t $(aws s3 ls "s3://${DATA_BUCKET}/telemetry/thing=${t}/" --recursive | wc -l)"
+done
+```
+
+```text
+gg-edge-wt-dev-esp32-1 227
+gg-edge-wt-dev-esp32-2 229
+```
+
+If you heated a zone on the [alarm](/alarm/) page, those readings are in the
+lake too. A few minutes of heat among hundreds of normal samples only widens σ
+slightly.
+
+## 3. SageMaker execution role
+
+The trust and permissions follow
+[SageMaker roles](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html)
+but are scoped to this bucket and the scikit-learn image repository.
+
+### Pick the scikit-learn image for your Region
+
+The account that hosts the prebuilt image differs per Region. Look yours up in
+the SageMaker Python SDK table
+[`image_uri_config/sklearn.json`](https://github.com/aws/sagemaker-python-sdk/blob/master/sagemaker-core/src/sagemaker/core/image_uri_config/sklearn.json).
+For `ap-southeast-2` it is `783357654285`:
+
+```bash frame="terminal"
+SKLEARN_REGISTRY=783357654285
+SKLEARN_IMAGE_URI="${SKLEARN_REGISTRY}.dkr.ecr.${AWS_REGION}.amazonaws.com/sagemaker-scikit-learn:1.4-2-cpu-py3"
+echo "$SKLEARN_IMAGE_URI"
+```
+
+```text
+783357654285.dkr.ecr.ap-southeast-2.amazonaws.com/sagemaker-scikit-learn:1.4-2-cpu-py3
+```
+
+### Create the role
+
+```bash frame="terminal"
+aws iam create-role --role-name "$SAGEMAKER_ROLE" \
+  --assume-role-policy-document file://artifacts/policies/sagemaker-trust.json \
+  --query Role.Arn --output text
+sed -e "s|DATA_BUCKET|${DATA_BUCKET}|g" -e "s|AWS_REGION|${AWS_REGION}|g" \
+    -e "s|SKLEARN_REGISTRY|${SKLEARN_REGISTRY}|g" \
+  artifacts/policies/sagemaker-training.json > /tmp/sagemaker-training.json
+aws iam put-role-policy --role-name "$SAGEMAKER_ROLE" \
+  --policy-name zone-anomaly-training --policy-document file:///tmp/sagemaker-training.json
+```
+
+```text
+arn:aws:iam::123456789012:role/gg-edge-wt-dev-sagemaker-training
+```
+
+## 4. Train
+
+### Upload the training source
+
+```bash frame="terminal"
+tar czf /tmp/sourcedir.tar.gz -C artifacts/ml/zone-anomaly train.py requirements.txt
+aws s3 cp /tmp/sourcedir.tar.gz "s3://${DATA_BUCKET}/ml/source/sourcedir.tar.gz"
+```
+
+```text
+upload: ../../tmp/sourcedir.tar.gz to s3://gg-edge-wt-dev-gg-data-123456789012/ml/source/sourcedir.tar.gz
+```
+
+### Start a SageMaker job
+
+New accounts often have **0** `ml.m5.large` training quota. If
+`create-training-job` fails with `ResourceLimitExceeded`, request an increase
+(`ml.m5.large for training job usage`) in Service Quotas, or use the local
+fallback below — same `train.py`, same `model.tar.gz` layout.
+
+```bash frame="terminal"
+TRAINING_JOB_NAME="zone-anomaly-$(date -u +%Y%m%d%H%M%S)"
+sed -e "s|TRAINING_JOB_NAME|${TRAINING_JOB_NAME}|g" \
+    -e "s|SAGEMAKER_ROLE_ARN|arn:aws:iam::${AWS_ACCOUNT_ID}:role/${SAGEMAKER_ROLE}|g" \
+    -e "s|SKLEARN_IMAGE_URI|${SKLEARN_IMAGE_URI}|g" \
+    -e "s|DATA_BUCKET|${DATA_BUCKET}|g" -e "s|AWS_REGION|${AWS_REGION}|g" \
+  artifacts/ml/zone-anomaly/training-job.json > /tmp/training-job.json
+aws sagemaker create-training-job --cli-input-json file:///tmp/training-job.json
+```
+
+```text
+{
+    "TrainingJobArn": "arn:aws:sagemaker:ap-southeast-2:123456789012:training-job/zone-anomaly-…"
+}
+```
+
+```bash frame="terminal"
+aws sagemaker wait training-job-completed-or-stopped --training-job-name "$TRAINING_JOB_NAME"
+aws sagemaker describe-training-job --training-job-name "$TRAINING_JOB_NAME" \
+  --query "[TrainingJobStatus,FailureReason,ModelArtifacts.S3ModelArtifacts]" --output text
+```
+
+```text
+Completed	None	s3://gg-edge-wt-dev-gg-data-123456789012/ml/output/zone-anomaly-…/output/model.tar.gz
+```
+
+### Local fallback (same script)
+
+Use **Python 3.12** (3.14 cannot install the scikit-learn pin). Sync the lake,
+train, upload `model.tar.gz` where packaging expects it:
+
+```bash frame="terminal"
+TRAINING_JOB_NAME="zone-anomaly-local-$(date -u +%Y%m%d%H%M%S)"
+rm -rf /tmp/gg-edge-train /tmp/gg-edge-model
+mkdir -p /tmp/gg-edge-train /tmp/gg-edge-model
+aws s3 sync "s3://${DATA_BUCKET}/telemetry/" /tmp/gg-edge-train/telemetry/
+python3.12 -m venv /tmp/gg-edge-ml-venv
+/tmp/gg-edge-ml-venv/bin/pip install -U pip
+/tmp/gg-edge-ml-venv/bin/pip install 'scikit-learn==1.4.2' 'numpy==1.26.4' \
+  -r artifacts/ml/zone-anomaly/requirements.txt
+export TRAINING_JOB_NAME
+export SM_CHANNEL_TRAIN=/tmp/gg-edge-train/telemetry
+export SM_MODEL_DIR=/tmp/gg-edge-model
+/tmp/gg-edge-ml-venv/bin/python artifacts/ml/zone-anomaly/train.py
+tar czf /tmp/model.tar.gz -C /tmp/gg-edge-model .
+aws s3 cp /tmp/model.tar.gz \
+  "s3://${DATA_BUCKET}/ml/output/${TRAINING_JOB_NAME}/output/model.tar.gz"
+```
+
+```text
+loaded 456 samples from 2 zones; skipped 0
+trained gg-edge-wt-dev-esp32-1: samples=227 mean=30.00 sigma=0.43 alarm beyond ±1.73 C threshold=-8.082 flagged=0
+trained gg-edge-wt-dev-esp32-2: samples=229 mean=27.15 sigma=0.58 alarm beyond ±2.32 C threshold=-8.374 flagged=0
+```
+
+## 5. Package the model as a Greengrass artifact
+
+### Repack `model.tar.gz` as a ZIP
+
+The recipe unarchives `zone-anomaly-model.zip` into
+`{artifacts:decompressedPath}/zone-anomaly-model/`
+([recipe reference](https://docs.aws.amazon.com/greengrass/v2/developerguide/component-recipe-reference.html)).
+
+```bash frame="terminal"
+MODEL_TGZ="s3://${DATA_BUCKET}/ml/output/${TRAINING_JOB_NAME}/output/model.tar.gz"
+rm -rf /tmp/zone-anomaly-model /tmp/zone-anomaly-model.zip
+mkdir -p /tmp/zone-anomaly-model
+aws s3 cp "$MODEL_TGZ" /tmp/model.tar.gz --quiet
+tar xzf /tmp/model.tar.gz -C /tmp/zone-anomaly-model
+(cd /tmp/zone-anomaly-model && python3 -m zipfile -c /tmp/zone-anomaly-model.zip manifest.json *.onnx)
+python3 -m zipfile -l /tmp/zone-anomaly-model.zip
+```
+
+```text
+File Name                                             Modified             Size
+manifest.json                                  2026-10-10 12:14:04          837
+gg-edge-wt-dev-esp32-1.onnx                    2026-10-10 12:14:04          976
+gg-edge-wt-dev-esp32-2.onnx                    2026-10-10 12:14:04          976
+```
+
+### Upload model and inference code
+
+```bash frame="terminal"
+P="s3://${ARTIFACT_BUCKET}/artifacts/com.example.ZoneAnomaly/1.0.0"
+aws s3 cp artifacts/components/artifacts/com.example.ZoneAnomaly/1.0.0/infer.py "$P/infer.py"
+aws s3 cp /tmp/zone-anomaly-model.zip "$P/zone-anomaly-model.zip"
+```
+
+```text
+upload: …/infer.py to s3://gg-edge-wt-dev-gg-artifacts-123456789012/artifacts/com.example.ZoneAnomaly/1.0.0/infer.py
+upload: …/zone-anomaly-model.zip to s3://gg-edge-wt-dev-gg-artifacts-123456789012/artifacts/com.example.ZoneAnomaly/1.0.0/zone-anomaly-model.zip
+```
+
+### Create the component version
+
+```bash frame="terminal"
+sed "s|ARTIFACT_BUCKET|${ARTIFACT_BUCKET}|g" \
+  artifacts/components/recipes/com.example.ZoneAnomaly-1.0.0.yaml > /tmp/ZoneAnomaly-1.0.0.yaml
+aws greengrassv2 create-component-version --inline-recipe fileb:///tmp/ZoneAnomaly-1.0.0.yaml \
+  --query "[componentName,componentVersion,status.componentState]" --output text
+```
+
+```text
+com.example.ZoneAnomaly	1.0.0	REQUESTED
+```
+
+Wait until `describe-component` shows `DEPLOYABLE`. After you retrain, upload
+under a new version path (for example `1.0.1`) and bump `ComponentVersion` —
+overwriting the ZIP in place fails the integrity check.
+
+## 6. Deploy to the core
+
+### Python venv support on the NUC
+
+The install step builds a virtualenv with `onnxruntime`. Ubuntu 24.04 needs:
+
+```bash frame="terminal"
+sudo apt-get install -y python3-venv
+```
+
+```text
+Setting up python3.12-venv (3.12.3-1ubuntu0.17) ...
+```
+
+### Add ZoneAnomaly to the greenhouse deployment
+
+A Thing-group deployment replaces the previous one, so render the full stack
+from [Deploy from the cloud](/deploy-cloud/) again and add the new component:
+
+```bash frame="terminal"
+CLI_VER=$(aws greengrassv2 list-components --scope PUBLIC \
+  --query "components[?componentName=='aws.greengrass.Cli'].latestVersion.componentVersion" --output text)
+LM_VER=$(aws greengrassv2 list-components --scope PUBLIC \
+  --query "components[?componentName=='aws.greengrass.LogManager'].latestVersion.componentVersion" --output text)
+[ -n "$LM_VER" ] || LM_VER=2.3.14
+sed -e "s|TARGET_THING_GROUP_ARN|${CORE_THING_GROUP_ARN}|g" \
+    -e "s|CLIENT_THING_PREFIX|${CLIENT_THING_PREFIX}|g" \
+    -e "s|CLI_COMPONENT_VERSION|${CLI_VER}|g" \
+    -e "s|LOGMANAGER_COMPONENT_VERSION|${LM_VER}|g" \
+  artifacts/deployments/greenhouse-cloud.json \
+  | jq '.components["com.example.ZoneAnomaly"] = {"componentVersion": "1.0.0"}' \
+  > /tmp/greenhouse-cloud-ml.json
+aws greengrassv2 create-deployment --cli-input-json file:///tmp/greenhouse-cloud-ml.json
+```
+
+```text
+{
+    "deploymentId": "…"
+}
+```
+
+Wait for `SUCCEEDED`. First install downloads `onnxruntime` wheels (~30 s on
+the NUC6CAY). The recipe allows 900 s for slower links.
+
+### Record every edge score in DynamoDB
+
+```bash frame="terminal"
+sed -e "s|ZONE_TABLE|${ZONE_TABLE}|g" -e "s|IOT_RULE_ROLE_ARN|${IOT_RULE_ROLE_ARN}|g" \
+  artifacts/iot-rules/inference-to-dynamodb.json > /tmp/rule-inference-ddb.json
+aws iot create-topic-rule --rule-name "${RULE_PREFIX}_inference_ddb" \
+  --topic-rule-payload file:///tmp/rule-inference-ddb.json
+```
+
+```text
+(no output)
+```
+
+## 7. Prove it
+
+### Scores in DynamoDB
+
+```bash frame="terminal"
+aws dynamodb get-item --table-name "$ZONE_TABLE" \
+  --key "{\"thing\":{\"S\":\"${CLIENT_THING_NAME}\"},\"kind\":{\"S\":\"inference\"}}" \
+  --query "Item.{tempC:tempC.N,score:score.N,anomaly:anomaly.BOOL,model:model.S}"
+```
+
+```text
+{
+    "tempC": "30.9",
+    "score": "-2.2566",
+    "anomaly": false,
+    "model": "zone-anomaly-local-20261009231335"
+}
+```
+
+`model` is the training job name (SageMaker or `zone-anomaly-local-…`).
+
+On the NUC, `/greengrass/v2/logs/com.example.ZoneAnomaly.log` shows loaded
+ONNX models and per-sample scores.
+
+### Edge vs cloud, side by side
+
+Hold your thumb on the `esp32-1` module and watch the RGB:
+
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>RGB</th>
+      <th>Who acted</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>~20 s</td>
+      <td>
+        <strong>red</strong>
+      </td>
+      <td>
+        <code>ZoneAnomaly</code> on the NUC (two anomalous samples in a row)
+      </td>
+    </tr>
+    <tr>
+      <td>1–3 min</td>
+      <td>
+        <strong>blue</strong>
+      </td>
+      <td>CloudWatch alarm → SNS → Lambda → IoT Core → bridge → GgEdgeLoop</td>
+    </tr>
+    <tr>
+      <td>after you let go</td>
+      <td>off</td>
+      <td>
+        Edge clears after two normal samples; alarm <code>OK</code> sends{" "}
+        <code>off</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+After two hot readings, DynamoDB shows:
+
+```text
+{
+    "tempC": "36.5",
+    "score": "-112.8415",
+    "anomaly": true,
+    "model": "zone-anomaly-local-20261009231335"
+}
+```
+
+```text
+{
+    "state": "on",
+    "color": "red",
+    "source": "com.example.ZoneAnomaly",
+    "reason": "anomaly score -112.8415 at tempC 36.5"
+}
+```
+
+The model is two-sided, so a zone that suddenly runs **cold** also goes red.
+The cloud alarm only watches the high side.
+
+When finished: [Teardown](/teardown/).

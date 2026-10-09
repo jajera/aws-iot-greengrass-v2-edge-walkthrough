@@ -1,0 +1,34 @@
+---
+RecipeFormatVersion: "2020-01-25"
+ComponentName: com.example.GgEdgeLoop
+ComponentVersion: "1.1.0"
+ComponentDescription: >-
+  Zone loop. Button on gg-edge/sensor -> gg-edge/actuator/<thing> (green).
+  Cloud command on gg-edge/cloud/command/<thing> -> actuator (blue) + ack on
+  gg-edge/cloud/ack/<thing>.
+ComponentPublisher: jajera
+ComponentConfiguration:
+  DefaultConfiguration:
+    accessControl:
+      aws.greengrass.ipc.pubsub:
+        "com.example.GgEdgeLoop:pubsub:1":
+          policyDescription: Zone sensor, cloud command, actuator, ack topics
+          operations:
+            - aws.greengrass#SubscribeToTopic
+            - aws.greengrass#PublishToTopic
+          resources:
+            - gg-edge/sensor
+            - "gg-edge/cloud/command/+"
+            - "gg-edge/actuator/*"
+            - "gg-edge/cloud/ack/*"
+Manifests:
+  - Platform:
+      os: linux
+    Lifecycle:
+      Run: python3 -u {artifacts:path}/loop.py
+    Artifacts:
+      - URI: "s3://ARTIFACT_BUCKET/artifacts/com.example.GgEdgeLoop/1.1.0/loop.py"
+        Unarchive: NONE
+        Permission:
+          Read: OWNER
+          Execute: NONE

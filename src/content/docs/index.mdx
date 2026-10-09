@@ -1,0 +1,222 @@
+---
+title: Greengrass V2 Edge Walkthrough
+description: One continuous greenhouse lab — Greengrass V2 on a NUC core, ESP32-S3 zones on the LAN, then IoT rules, alarms, cloud commands, and edge inference, every step as plain AWS CLI.
+template: splash
+hero:
+  tagline: A greenhouse edge lab in two acts — closed loop on the LAN, then wire the same data into AWS. Every step is plain AWS CLI.
+  actions:
+    - text: Get started
+      link: /tooling/
+      icon: right-arrow
+      variant: primary
+    - text: Jump to AWS wiring
+      link: /deploy-cloud/
+      variant: secondary
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import AwsArchDiagram from "@/components/AwsArchDiagram.astro";
+
+## What you build
+
+One <Tooltip term="nuc6cay" label="NUC" /> runs <Tooltip term="nucleus" label="Nucleus" />.
+Up to three <Tooltip term="esp32-s3" label="ESP32-S3" /> boards are zone{" "}
+<Tooltip term="client-device" label="client devices" />. Press **BOOT** → green
+RGB on that zone. Chip temperature streams every 10 s. AWS archives it, tracks
+state, alarms on heat, commands the RGB blue from the cloud, and trains a model
+the core runs locally (red RGB).
+
+No Terraform. No provision wrappers. Visible <Tooltip term="aws-cli" label="AWS CLI" />
+and JSON under `artifacts/`.
+
+<table>
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Hardware</th>
+      <th>Software</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <Tooltip term="core-device" label="Core" />
+      </td>
+      <td>
+        <Tooltip term="nuc6cay" label="NUC6CAY" />, Ubuntu 24.04
+      </td>
+      <td>
+        Nucleus, Moquette, bridge, GgEdgeLoop, ZoneAnomaly
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <Tooltip term="client-device" label="Client" />
+      </td>
+      <td>ESP32-S3 DevKitC-1 (up to 3)</td>
+      <td>Firmware — button, chip temp, RGB</td>
+    </tr>
+  </tbody>
+</table>
+
+<AwsArchDiagram />
+
+## Path
+
+Read [Concepts](/concepts/) and [Why Greengrass?](/why-greengrass/) once, then
+run the numbered pages in order.
+
+### Before you begin
+
+1. [Tooling](/tooling/) — AWS CLI, jq, ESP-IDF
+2. [Prerequisites](/prerequisites/) — account, BOM, naming
+3. [Concepts](/concepts/) · [Why Greengrass?](/why-greengrass/)
+
+### 1 · Greenhouse on the LAN
+
+Local sense → actuate. The cloud may mirror topics; nothing consumes them yet.
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Page</th>
+      <th>You leave with</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td>
+        <a href="/identities/">Identities</a>
+      </td>
+      <td>Things, certs, policies, token-exchange role</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>
+        <a href="/prepare-core/">Prepare the core</a>
+      </td>
+      <td>Ubuntu on the NUC, <code>walkthrough.env</code></td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>
+        <a href="/nucleus/">Install Nucleus</a>
+      </td>
+      <td>Healthy core device</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>
+        <a href="/mqtt-stack/">Local MQTT stack</a>
+      </td>
+      <td>Moquette, Auth, Bridge, IPDetector</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>
+        <a href="/associate/">Associate zones</a>
+      </td>
+      <td>Discovery returns the core host:8883</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>
+        <a href="/loop/">Loop component</a>
+      </td>
+      <td>
+        <code>GgEdgeLoop</code> RUNNING on the NUC
+      </td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td>
+        <a href="/flash/">Flash zones</a>
+      </td>
+      <td>Boards on Moquette; telemetry every 10 s</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td>
+        <a href="/prove-lan/">Prove the LAN loop</a>
+      </td>
+      <td>BOOT → green RGB on that zone only</td>
+    </tr>
+  </tbody>
+</table>
+
+### 2 · Wire into AWS
+
+Same topics. Now AWS consumes them, and the cloud can drive the zones. Full
+topic-by-topic wiring: [Architecture](/architecture/).
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Page</th>
+      <th>Proof on the bench</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>9</td>
+      <td>
+        <a href="/deploy-cloud/">Deploy from the cloud</a>
+      </td>
+      <td>Component from S3; logs in CloudWatch</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td>
+        <a href="/archive/">Archive telemetry</a>
+      </td>
+      <td>JSON objects under <code>telemetry/</code> in S3</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td>
+        <a href="/zone-state/">Zone state</a>
+      </td>
+      <td>Latest temp + who drove the RGB in DynamoDB</td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td>
+        <a href="/alarm/">Raise an alarm</a>
+      </td>
+      <td>Thumb on the chip → email</td>
+    </tr>
+    <tr>
+      <td>13</td>
+      <td>
+        <a href="/command/">Cloud commands</a>
+      </td>
+      <td>Alarm turns that zone’s RGB <strong>blue</strong></td>
+    </tr>
+    <tr>
+      <td>14</td>
+      <td>
+        <a href="/inference/">Edge inference</a>
+      </td>
+      <td>Core turns RGB <strong>red</strong> before the cloud alarm</td>
+    </tr>
+    <tr>
+      <td>15</td>
+      <td>
+        <a href="/teardown/">Teardown</a>
+      </td>
+      <td>Every resource gone</td>
+    </tr>
+  </tbody>
+</table>
+
+RGB tells you which layer acted: **green** = button loop, **blue** = cloud
+command, **red** = edge model.
+
+<Aside type="caution">
+Always-on Nucleus costs electricity and a little AWS. Finish with{" "}
+<a href="/teardown/">Teardown</a>.
+</Aside>

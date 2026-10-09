@@ -1,0 +1,822 @@
+---
+/**
+ * InterconnectDiagram — topic-level wiring for the finished greenhouse lab.
+ * Every bridge mapping, component pub/sub, and IoT rule hop labeled.
+ * Icons from https://aws-icons.johna.kiwi/ under AWS Trademark Guidelines.
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  client: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+  core: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  component: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Component_48.svg`,
+  iot: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+  s3: `${ICONS}/service/storage/Arch_Amazon-Simple-Storage-Service_64.svg`,
+  ddb: `${ICONS}/service/database/Arch_Amazon-DynamoDB_64.svg`,
+  cw: `${ICONS}/service/management/Arch_Amazon-CloudWatch_64.svg`,
+  sns: `${ICONS}/service/integration/Arch_Amazon-Simple-Notification-Service_64.svg`,
+  lambda: `${ICONS}/service/compute/Arch_AWS-Lambda_64.svg`,
+  sm: `${ICONS}/service/ai/Arch_Amazon-SageMaker-AI_64.svg`,
+  deploy: `${ICONS}/group/iot/AWS-IoT-Greengrass-Deployment_32.svg`,
+};
+
+const bridges = [
+  {
+    name: "SensorLocalToPubsub",
+    topic: "gg-edge/sensor",
+    path: "LocalMqtt → Pubsub",
+    who: "GgEdgeLoop (button)",
+  },
+  {
+    name: "SensorLocalToIotCore",
+    topic: "gg-edge/sensor",
+    path: "LocalMqtt → IotCore",
+    who: "console optional",
+  },
+  {
+    name: "TelemetryLocalToPubsub",
+    topic: "gg-edge/telemetry/+",
+    path: "LocalMqtt → Pubsub",
+    who: "ZoneAnomaly",
+  },
+  {
+    name: "TelemetryLocalToIotCore",
+    topic: "gg-edge/telemetry/+",
+    path: "LocalMqtt → IotCore",
+    who: "rules S3 · DDB · CW",
+  },
+  {
+    name: "ActuatorPubsubToLocal",
+    topic: "gg-edge/actuator/+",
+    path: "Pubsub → LocalMqtt",
+    who: "RGB on zone",
+  },
+  {
+    name: "ActuatorPubsubToIotCore",
+    topic: "gg-edge/actuator/+",
+    path: "Pubsub → IotCore",
+    who: "rule actuator_ddb",
+  },
+  {
+    name: "CommandIotCoreToPubsub",
+    topic: "gg-edge/cloud/command/+",
+    path: "IotCore → Pubsub",
+    who: "Lambda / manual",
+  },
+  {
+    name: "AckPubsubToIotCore",
+    topic: "gg-edge/cloud/ack/+",
+    path: "Pubsub → IotCore",
+    who: "rule ack_ddb",
+  },
+  {
+    name: "InferencePubsubToIotCore",
+    topic: "gg-edge/inference/+",
+    path: "Pubsub → IotCore",
+    who: "rule inference_ddb",
+  },
+];
+
+const rules = [
+  {
+    from: "telemetry/+",
+    artifact: "telemetry-to-s3",
+    action: "S3 PutObject",
+    dest: "telemetry/thing=…/dt=…/ts.json",
+  },
+  {
+    from: "telemetry/+",
+    artifact: "telemetry-to-dynamodb",
+    action: "DDB PutItem",
+    dest: "kind=telemetry",
+  },
+  {
+    from: "telemetry/+",
+    artifact: "telemetry-to-cloudwatch",
+    action: "PutMetricData",
+    dest: "ChipTempC-<thing>",
+  },
+  {
+    from: "actuator/+",
+    artifact: "actuator-to-dynamodb",
+    action: "DDB PutItem",
+    dest: "kind=actuator",
+  },
+  {
+    from: "cloud/ack/+",
+    artifact: "ack-to-dynamodb",
+    action: "DDB PutItem",
+    dest: "kind=cloud-ack",
+  },
+  {
+    from: "inference/+",
+    artifact: "inference-to-dynamodb",
+    action: "DDB PutItem",
+    dest: "kind=inference",
+  },
+];
+---
+
+<figure class="ix not-content" aria-labelledby="ix-caption">
+  {/* ---- Layer 1: LAN stack with every hop ---- */}
+  <section class="ix-band" aria-label="Greenhouse LAN hops">
+    <h3 class="ix-band-title">1 · On the core (every MQTT hop)</h3>
+
+    <div class="ix-lan">
+      <div class="ix-col ix-col--zones">
+        <div class="ix-node">
+          <img src={img.client} alt="" width="36" height="36" loading="lazy" />
+          <span class="ix-name">ESP32-S3 zones</span>
+          <span class="ix-sub">mTLS → Moquette :8883</span>
+        </div>
+        <ul class="ix-topic-list">
+          <li>
+            <span class="ix-dir ix-dir--up">pub</span>
+            <code>gg-edge/sensor</code>
+            <span class="ix-hint">BOOT press/release</span>
+          </li>
+          <li>
+            <span class="ix-dir ix-dir--up">pub</span>
+            <code>gg-edge/telemetry/&lt;thing&gt;</code>
+            <span class="ix-hint">every 10 s</span>
+          </li>
+          <li>
+            <span class="ix-dir ix-dir--down">sub</span>
+            <code>gg-edge/actuator/&lt;thing&gt;</code>
+            <span class="ix-hint">RGB green · blue · red</span>
+          </li>
+        </ul>
+      </div>
+
+      <span class="ix-arrow" data-label="LocalMqtt">⇄</span>
+
+      <div class="ix-col ix-col--stack">
+        <header class="ix-stack-head">
+          <img src={img.core} alt="" width="32" height="32" loading="lazy" />
+          <span>NUC · Greengrass V2</span>
+        </header>
+
+        <div class="ix-stack-grid">
+          <div class="ix-pill">
+            <img src={img.component} alt="" width="16" height="16" loading="lazy" />
+            <div>
+              <strong>Moquette</strong>
+              <span>LocalMqtt broker</span>
+            </div>
+          </div>
+          <div class="ix-pill ix-pill--bridge">
+            <img src={img.component} alt="" width="16" height="16" loading="lazy" />
+            <div>
+              <strong>MQTT Bridge</strong>
+              <span>9 topic mappings</span>
+            </div>
+          </div>
+          <div class="ix-pill">
+            <img src={img.component} alt="" width="16" height="16" loading="lazy" />
+            <div>
+              <strong>Pubsub IPC</strong>
+              <span>component bus</span>
+            </div>
+          </div>
+          <div class="ix-pill ix-pill--green">
+            <img src={img.component} alt="" width="16" height="16" loading="lazy" />
+            <div>
+              <strong>GgEdgeLoop 1.1.0</strong>
+              <span>sub sensor + command · pub actuator + ack</span>
+            </div>
+          </div>
+          <div class="ix-pill ix-pill--red">
+            <img src={img.component} alt="" width="16" height="16" loading="lazy" />
+            <div>
+              <strong>ZoneAnomaly 1.0.0</strong>
+              <span>sub telemetry · pub inference + red actuator</span>
+            </div>
+          </div>
+          <div class="ix-pill">
+            <img src={img.component} alt="" width="16" height="16" loading="lazy" />
+            <div>
+              <strong>LogManager</strong>
+              <span>→ CloudWatch Logs · 60 s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ix-bridge-table-wrap">
+      <p class="ix-bridge-lead">
+        Bridge routes from{" "}
+        <code>greenhouse-cloud.json</code> (reset <code>/mqttTopicMapping</code> then
+        merge):
+      </p>
+      <table class="ix-table">
+        <thead>
+          <tr>
+            <th>Mapping</th>
+            <th>Topic</th>
+            <th>Source → target</th>
+            <th>Consumer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            bridges.map((b) => (
+              <tr>
+                <td>
+                  <code>{b.name}</code>
+                </td>
+                <td>
+                  <code>{b.topic}</code>
+                </td>
+                <td>{b.path}</td>
+                <td>{b.who}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {/* ---- Layer 2: IoT rules ---- */}
+  <section class="ix-band" aria-label="IoT Core rule fan-out">
+    <h3 class="ix-band-title">2 · Data up (IoT rules)</h3>
+
+    <div class="ix-flow">
+      <div class="ix-node ix-node--hub">
+        <img src={img.iot} alt="" width="40" height="40" loading="lazy" />
+        <span class="ix-name">IoT Core</span>
+        <span class="ix-sub">bridged topics land here</span>
+      </div>
+      <span class="ix-arrow" data-label="SQL FROM">→</span>
+      <div class="ix-rules">
+        {
+          rules.map((r) => (
+            <div class="ix-rule">
+              <code class="ix-rule-from">gg-edge/{r.from}</code>
+              <span class="ix-rule-art">{r.artifact}</span>
+              <span class="ix-rule-act">{r.action}</span>
+              <span class="ix-rule-dest">{r.dest}</span>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="ix-sinks">
+      <div class="ix-node">
+        <img src={img.s3} alt="" width="32" height="32" loading="lazy" />
+        <span class="ix-name">S3 data lake</span>
+        <span class="ix-sub">telemetry archive</span>
+      </div>
+      <div class="ix-node">
+        <img src={img.ddb} alt="" width="32" height="32" loading="lazy" />
+        <span class="ix-name">DynamoDB</span>
+        <span class="ix-sub">zone-state · 4 kinds</span>
+      </div>
+      <div class="ix-node">
+        <img src={img.cw} alt="" width="32" height="32" loading="lazy" />
+        <span class="ix-name">CloudWatch</span>
+        <span class="ix-sub">GgEdge/Greenhouse</span>
+      </div>
+    </div>
+  </section>
+
+  {/* ---- Layer 3: control down ---- */}
+  <section class="ix-band ix-band--control" aria-label="Cloud command path">
+    <h3 class="ix-band-title">3 · Control down (blue RGB)</h3>
+    <ol class="ix-seq">
+      <li>
+        <img src={img.cw} alt="" width="22" height="22" loading="lazy" />
+        <span>
+          metric <code>ChipTempC-&lt;thing&gt;</code> → alarm ALARM/OK
+        </span>
+      </li>
+      <li>
+        <img src={img.sns} alt="" width="22" height="22" loading="lazy" />
+        <span>SNS topic (email + Lambda)</span>
+      </li>
+      <li>
+        <img src={img.lambda} alt="" width="22" height="22" loading="lazy" />
+        <span>
+          Lambda publishes{" "}
+          <code>gg-edge/cloud/command/&lt;thing&gt;</code>{" "}
+          <span class="ix-rgb ix-rgb--blue">blue</span>
+        </span>
+      </li>
+      <li>
+        <img src={img.iot} alt="" width="22" height="22" loading="lazy" />
+        <span>
+          Bridge <code>CommandIotCoreToPubsub</code> → GgEdgeLoop →{" "}
+          <code>actuator/&lt;thing&gt;</code>
+        </span>
+      </li>
+      <li>
+        <img src={img.ddb} alt="" width="22" height="22" loading="lazy" />
+        <span>
+          GgEdgeLoop ack → <code>gg-edge/cloud/ack/&lt;thing&gt;</code> → rule →
+          DynamoDB
+        </span>
+      </li>
+    </ol>
+  </section>
+
+  {/* ---- Layer 4: ML ---- */}
+  <section class="ix-band ix-band--ml" aria-label="Edge inference path">
+    <h3 class="ix-band-title">4 · Edge inference (red RGB)</h3>
+    <div class="ix-ml-row">
+      <div class="ix-node">
+        <img src={img.s3} alt="" width="32" height="32" loading="lazy" />
+        <span class="ix-name">S3 lake</span>
+        <span class="ix-sub">train input</span>
+      </div>
+      <span class="ix-arrow" data-label="script mode">→</span>
+      <div class="ix-node">
+        <img src={img.sm} alt="" width="32" height="32" loading="lazy" />
+        <span class="ix-name">SageMaker</span>
+        <span class="ix-sub">sklearn → ONNX</span>
+      </div>
+      <span class="ix-arrow" data-label="model.zip">→</span>
+      <div class="ix-node">
+        <img src={img.s3} alt="" width="32" height="32" loading="lazy" />
+        <span class="ix-name">S3 artifacts</span>
+        <span class="ix-sub">zone-anomaly-model</span>
+      </div>
+      <span class="ix-arrow" data-label="component">→</span>
+      <div class="ix-node">
+        <img src={img.deploy} alt="" width="32" height="32" loading="lazy" />
+        <span class="ix-name">Thing-group</span>
+        <span class="ix-sub">ZoneAnomaly 1.0.0</span>
+      </div>
+      <span class="ix-arrow" data-label="score">→</span>
+      <div class="ix-node ix-node--red">
+        <img src={img.component} alt="" width="32" height="32" loading="lazy" />
+        <span class="ix-name">
+          red RGB + <code>inference/+</code>
+        </span>
+        <span class="ix-sub">~20 s · two-sided</span>
+      </div>
+    </div>
+  </section>
+
+  <figcaption id="ix-caption">
+    Zones never open a socket to AWS. The bridge is the only LocalMqtt ↔ Pubsub ↔
+    IoT Core crossing. Last actuator message wins on the wire; DynamoDB{" "}
+    <code>kind=actuator</code> records <code>source</code>.
+  </figcaption>
+</figure>
+
+<style>
+  .ix {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .ix-band {
+    padding: 1rem 0.95rem 1.05rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 50% at 50% -8%,
+        var(--patina-accent-soft, color-mix(in oklab, var(--sl-color-accent) 10%, transparent)),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .ix-band--control {
+    border-color: color-mix(in oklab, #3b82f6 35%, var(--sl-color-hairline));
+  }
+
+  .ix-band--ml {
+    border-color: color-mix(in oklab, #ef4444 30%, var(--sl-color-hairline));
+  }
+
+  .ix-band-title {
+    margin: 0 0 0.75rem;
+    font-family: var(--sl-font-headings);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+  }
+
+  .ix-lan {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.65rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .ix-col--zones {
+    flex: 0 1 14rem;
+    min-width: 0;
+  }
+
+  .ix-col--stack {
+    flex: 1 1 18rem;
+    min-width: 0;
+    padding: 0.65rem;
+    border: 1px dashed var(--sl-color-hairline);
+    border-radius: 0.7rem;
+    background: color-mix(in oklab, var(--sl-color-bg) 75%, transparent);
+  }
+
+  .ix-stack-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+  }
+
+  .ix-stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    gap: 0.35rem;
+  }
+
+  .ix-pill {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding: 0.4rem 0.45rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.45rem;
+    background: var(--sl-color-bg);
+    font-size: 0.68rem;
+    color: var(--sl-color-gray-2);
+    line-height: 1.25;
+  }
+
+  .ix-pill img {
+    flex: 0 0 auto;
+    margin-top: 0.1rem;
+  }
+
+  .ix-pill strong {
+    display: block;
+    color: var(--sl-color-white);
+    font-size: 0.72rem;
+  }
+
+  .ix-pill span {
+    display: block;
+  }
+
+  .ix-pill--bridge {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-hairline));
+  }
+
+  .ix-pill--green {
+    border-color: color-mix(in oklab, #22c55e 45%, var(--sl-color-hairline));
+  }
+
+  .ix-pill--red {
+    border-color: color-mix(in oklab, #ef4444 45%, var(--sl-color-hairline));
+  }
+
+  .ix-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.65rem 0.55rem;
+    text-align: center;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.6rem;
+    background: var(--sl-color-bg);
+  }
+
+  .ix-node--hub {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 40%, var(--sl-color-hairline));
+    min-width: 8rem;
+  }
+
+  .ix-node--red {
+    border-color: color-mix(in oklab, #ef4444 45%, var(--sl-color-hairline));
+  }
+
+  .ix-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+  }
+
+  .ix-sub {
+    font-size: 0.65rem;
+    color: var(--sl-color-gray-3);
+    line-height: 1.3;
+  }
+
+  .ix-topic-list {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .ix-topic-list li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.35rem;
+    padding: 0.35rem 0.4rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.4rem;
+    background: var(--sl-color-bg);
+    font-size: 0.65rem;
+  }
+
+  .ix-topic-list code {
+    font-size: 0.62rem;
+    grid-column: 2;
+  }
+
+  .ix-hint {
+    grid-column: 2;
+    color: var(--sl-color-gray-3);
+  }
+
+  .ix-dir {
+    grid-row: 1 / span 2;
+    align-self: center;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.25rem;
+    border-radius: 0.25rem;
+  }
+
+  .ix-dir--up {
+    color: color-mix(in oklab, #22c55e 90%, white);
+    background: color-mix(in oklab, #22c55e 18%, transparent);
+  }
+
+  .ix-dir--down {
+    color: color-mix(in oklab, #3b82f6 90%, white);
+    background: color-mix(in oklab, #3b82f6 18%, transparent);
+  }
+
+  .ix-arrow {
+    flex: 0 0 auto;
+    align-self: center;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  .ix-arrow::before {
+    content: attr(data-label);
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    white-space: nowrap;
+  }
+
+  .ix-bridge-lead {
+    margin: 0 0 0.45rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-2);
+  }
+
+  .ix-bridge-table-wrap {
+    overflow-x: auto;
+  }
+
+  .ix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.68rem;
+  }
+
+  .ix-table th,
+  .ix-table td {
+    padding: 0.35rem 0.45rem;
+    text-align: left;
+    border-bottom: 1px solid var(--sl-color-hairline);
+    vertical-align: top;
+  }
+
+  .ix-table th {
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sl-color-gray-3);
+    font-weight: 700;
+  }
+
+  .ix-table code {
+    font-size: 0.65rem;
+  }
+
+  .ix-flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .ix-rules {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .ix-rule {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.35rem;
+    align-items: center;
+    padding: 0.35rem 0.45rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.4rem;
+    background: var(--sl-color-bg);
+    font-size: 0.65rem;
+    min-width: 0;
+  }
+
+  .ix-rule > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 50rem) {
+    .ix-rule {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .ix-rule-from {
+    font-size: 0.62rem;
+  }
+
+  .ix-rule-art {
+    color: var(--sl-color-gray-2);
+  }
+
+  .ix-rule-act {
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+  }
+
+  .ix-rule-dest {
+    color: var(--sl-color-gray-3);
+  }
+
+  .ix-sinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: 0.45rem;
+  }
+
+  .ix-seq {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    counter-reset: ixseq;
+  }
+
+  .ix-seq li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.45rem;
+    background: var(--sl-color-bg);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-2);
+    line-height: 1.35;
+    counter-increment: ixseq;
+    min-width: 0;
+  }
+
+  .ix-seq li > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .ix-seq code {
+    overflow-wrap: anywhere;
+  }
+
+  .ix-seq li::before {
+    content: counter(ixseq);
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
+    margin-top: 0.1rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--sl-color-text-invert);
+    background: #3b82f6;
+  }
+
+  .ix-seq img {
+    flex: 0 0 auto;
+    margin-top: 0.05rem;
+  }
+
+  .ix-rgb {
+    font-weight: 700;
+  }
+
+  .ix-rgb--blue {
+    color: #60a5fa;
+  }
+
+  .ix-ml-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .ix-ml-row .ix-node {
+    width: min(100%, 18rem);
+  }
+
+  /* ml-row connectors read as "label ↓" between the stacked nodes */
+  .ix-ml-row .ix-arrow {
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0;
+    font-size: 0;
+  }
+
+  .ix-ml-row .ix-arrow::before {
+    font-size: 0.6rem;
+  }
+
+  .ix-ml-row .ix-arrow::after {
+    content: "↓";
+    font-size: 1.05rem;
+    color: var(--sl-color-accent);
+  }
+
+  figcaption {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.45;
+  }
+
+  figcaption code {
+    font-size: 0.85em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+
+  @media (max-width: 40rem) {
+    .ix-arrow {
+      flex-direction: row;
+      width: 100%;
+      justify-content: center;
+      gap: 0.35rem;
+      font-size: 0;
+    }
+
+    .ix-arrow::before {
+      font-size: 0.62rem;
+    }
+
+    .ix-arrow::after {
+      content: "↓";
+      font-size: 1.05rem;
+      color: var(--sl-color-accent);
+    }
+
+    .ix-lan .ix-arrow {
+      width: 100%;
+    }
+  }
+</style>

@@ -1,0 +1,373 @@
+---
+/**
+ * PrepareNucDiagram — what the shared Ubuntu Server walkthrough owns vs what
+ * this page owns, then the wiring: workstation walkthrough.env → ssh → NUC →
+ * on to Install Nucleus.
+ *
+ * Uses official AWS Architecture Icons (general set has Light/Dark variants)
+ * served from https://aws-icons.johna.kiwi/, under the AWS Trademark
+ * Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+/** General-set resources ship Light + Dark variants; swap per theme in CSS. */
+const gen = (name: string) => ({
+  dark: `${ICONS}/resource/general/Res_${name}_48_Dark.svg`,
+  light: `${ICONS}/resource/general/Res_${name}_48_Light.svg`,
+});
+
+const img = {
+  disk: gen("Disk"),
+  gear: gen("Gear"),
+  client: gen("Client"),
+  server: gen("Server"),
+  doc: gen("Document"),
+  greengrass: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+};
+---
+
+<figure class="pn not-content" aria-labelledby="pn-caption">
+  {/* ---- Who owns what ---- */}
+  <div class="pn-owners">
+    <section class="pn-owner pn-owner--shared">
+      <span class="pn-owner-tag">Ubuntu Server walkthrough</span>
+      <div class="pn-steps">
+        <span class="pn-step">
+          <img class="pn-ico" src={img.disk.dark} data-light={img.disk.light} alt="" width="26" height="26" loading="lazy" />
+          download → USB
+        </span>
+        <span class="pn-arrow" aria-hidden="true">→</span>
+        <span class="pn-step">
+          <img class="pn-ico" src={img.gear.dark} data-light={img.gear.light} alt="" width="26" height="26" loading="lazy" />
+          Subiquity → first boot
+        </span>
+        <span class="pn-arrow" aria-hidden="true">→</span>
+        <span class="pn-step pn-step--done">prove SSH</span>
+      </div>
+    </section>
+
+    <section class="pn-owner pn-owner--this">
+      <span class="pn-owner-tag pn-owner-tag--this">this page</span>
+      <div class="pn-overrides">
+        <span class="pn-kv"><span class="pn-k">hostname</span><code>nuc-gg-edge</code></span>
+        <span class="pn-kv"><span class="pn-k">user</span><code>ubuntu</code></span>
+      </div>
+    </section>
+  </div>
+
+  {/* ---- Wiring flow ---- */}
+  <div class="pn-flow">
+    <div class="pn-node pn-node--ws">
+      <img class="pn-ico pn-ico--lg" src={img.client.dark} data-light={img.client.light} alt="" width="40" height="40" loading="lazy" />
+      <span class="pn-name">Workstation</span>
+      <span class="pn-sub">
+        <img class="pn-ico-inline" src={img.doc.dark} data-light={img.doc.light} alt="" width="16" height="16" loading="lazy" />
+        <code>walkthrough.env</code>
+      </span>
+      <span class="pn-sub pn-sub--mono">NUC_USER · NUC_HOST</span>
+    </div>
+
+    <span class="pn-link" data-label="ssh">→</span>
+
+    <div class="pn-node pn-node--nuc">
+      <img class="pn-ico pn-ico--lg" src={img.server.dark} data-light={img.server.light} alt="" width="40" height="40" loading="lazy" />
+      <span class="pn-name">NUC · Ubuntu 24.04</span>
+      <span class="pn-sub">same LAN as the ESP32 later</span>
+    </div>
+
+    <span class="pn-link" data-label="next">→</span>
+
+    <div class="pn-node pn-node--next">
+      <img class="pn-ico pn-ico--lg" src={img.greengrass} alt="" width="40" height="40" loading="lazy" />
+      <span class="pn-name">Install Nucleus</span>
+      <span class="pn-sub">AWS CLI stays on workstation</span>
+    </div>
+  </div>
+
+  <figcaption id="pn-caption">
+    <ul>
+      <li>Shared guide: install OS, prove SSH.</li>
+      <li>This page: set <strong>nuc-gg-edge</strong> / <strong>ubuntu</strong> at Subiquity.</li>
+      <li>Record <code>NUC_USER</code> / <code>NUC_HOST</code>, then SSH in.</li>
+      <li>NUC never needs the AWS CLI.</li>
+    </ul>
+  </figcaption>
+</figure>
+
+<style>
+  .pn {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  /* Icon Dark↔Light swap is handled in the script below (data-light attr),
+     because the two variants are separate SVG files. */
+
+  /* ---- Owners band ---- */
+  .pn-owners {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  @media (min-width: 48rem) {
+    .pn-owners {
+      grid-template-columns: 1.7fr 1fr;
+    }
+  }
+
+  .pn-owner {
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.7rem;
+    padding: 0.9rem 0.8rem 0.75rem;
+    background: var(--sl-color-bg-nav);
+    position: relative;
+  }
+
+  .pn-owner--this {
+    border-style: dashed;
+    border-color: var(--sl-color-accent);
+    background: color-mix(in oklab, var(--sl-color-accent) 6%, transparent);
+  }
+
+  .pn-owner-tag {
+    display: inline-block;
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--sl-color-gray-3);
+    margin-bottom: 0.6rem;
+  }
+
+  .pn-owner-tag--this {
+    color: var(--sl-color-text-accent);
+  }
+
+  .pn-steps {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.5rem;
+  }
+
+  .pn-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg);
+  }
+
+  .pn-step--done {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, transparent);
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+
+  .pn-arrow {
+    color: var(--sl-color-accent);
+    font-weight: 700;
+  }
+
+  .pn-overrides {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .pn-kv {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    justify-content: space-between;
+  }
+
+  .pn-k {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  /* ---- Wiring flow (vertical stack: workstation → NUC → next) ---- */
+  .pn-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 1.1rem 0.9rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.8rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .pn-node {
+    width: min(100%, 20rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.85rem 0.7rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .pn-node--ws {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 40%, transparent);
+  }
+
+  .pn-node--next {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
+    border-style: dashed;
+  }
+
+  .pn-ico {
+    display: block;
+  }
+
+  .pn-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  .pn-sub {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    line-height: 1.3;
+  }
+
+  .pn-sub--mono {
+    font-family: var(--__sl-font-mono, monospace);
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+
+  .pn-sub code,
+  .pn-kv code {
+    font-size: 0.72rem;
+    color: var(--sl-color-text-accent);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+
+  .pn-ico-inline {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  /* "label ↓" between stacked nodes. The element's own text is the inline →
+     glyph — hide it and draw the label + down arrow via pseudos. */
+  .pn-link {
+    flex: 0 0 auto;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    line-height: 1;
+    font-size: 0;
+  }
+
+  .pn-link::before {
+    content: attr(data-label);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--sl-color-text-accent);
+    white-space: nowrap;
+  }
+
+  .pn-link::after {
+    content: "↓";
+    font-size: 1.1rem;
+    line-height: 1;
+    color: var(--sl-color-accent);
+  }
+
+  figcaption {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+
+  figcaption ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  figcaption li {
+    position: relative;
+    padding-left: 1.1rem;
+    line-height: 1.4;
+  }
+
+  figcaption li::before {
+    content: "›";
+    position: absolute;
+    left: 0.2rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+  }
+
+  figcaption strong {
+    color: var(--sl-color-white);
+  }
+
+  figcaption code {
+    font-size: 0.82em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+</style>
+
+<script>
+  // Swap general-set icons (Dark ↔ Light) with the Starlight theme.
+  function applyIconTheme() {
+    const light = document.documentElement.dataset.theme === "light";
+    document
+      .querySelectorAll<HTMLImageElement>(".pn-ico[data-light], .pn-ico-inline[data-light]")
+      .forEach((el) => {
+        const lightSrc = el.getAttribute("data-light");
+        const darkSrc = el.getAttribute("data-dark") ?? el.dataset.darkSrc;
+        if (!el.dataset.darkSrc) el.dataset.darkSrc = el.getAttribute("src") || "";
+        const target = light ? lightSrc : el.dataset.darkSrc;
+        if (target && el.getAttribute("src") !== target) el.setAttribute("src", target);
+      });
+  }
+
+  applyIconTheme();
+  // React to Starlight's theme toggle (it flips data-theme on <html>).
+  const obs = new MutationObserver(applyIconTheme);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  document.addEventListener("astro:after-swap", applyIconTheme);
+</script>

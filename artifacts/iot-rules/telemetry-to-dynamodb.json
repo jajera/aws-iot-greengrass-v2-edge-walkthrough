@@ -1,0 +1,16 @@
+{
+  "sql": "SELECT topic(3) AS thing, 'telemetry' AS kind, tempC, rssi, uptimeS, rgb, timestamp() AS ts FROM 'gg-edge/telemetry/+'",
+  "description": "Latest telemetry per zone (item thing + kind=telemetry)",
+  "awsIotSqlVersion": "2016-03-23",
+  "ruleDisabled": false,
+  "actions": [
+    {
+      "dynamoDBv2": {
+        "putItem": {
+          "tableName": "ZONE_TABLE"
+        },
+        "roleArn": "IOT_RULE_ROLE_ARN"
+      }
+    }
+  ]
+}

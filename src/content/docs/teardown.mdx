@@ -1,0 +1,357 @@
+---
+title: Teardown
+description: Delete every AWS resource from this walkthrough, then Nucleus, certificates, and Things.
+---
+
+import Tooltip from "@/components/Tooltip.astro";
+
+Teardown runs in reverse build order. Remove the cloud consumers first, from
+[Edge inference](/inference/) back to [Deploy from the cloud](/deploy-cloud/), so nothing
+keeps writing while you delete. Then remove the Greengrass identity:
+association, deployment, Nucleus, certificates, and{" "}
+<Tooltip term="thing" label="Things" />. Commands end in `|| true` where a
+reader may have skipped that page.
+
+### Load env, mutation gate, and derived names
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+export GG_EDGE_ALLOW_AWS=1
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ARTIFACT_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-gg-artifacts-${AWS_ACCOUNT_ID}"
+DATA_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-gg-data-${AWS_ACCOUNT_ID}"
+RULE_PREFIX=$(echo "${PROJECT_NAME}_${ENVIRONMENT}" | tr '-' '_')
+IOT_RULE_ROLE="${PROJECT_NAME}-${ENVIRONMENT}-iot-rules"
+SAGEMAKER_ROLE="${PROJECT_NAME}-${ENVIRONMENT}-sagemaker-training"
+ZONE_TABLE="${ZONE_TABLE:-${PROJECT_NAME}-${ENVIRONMENT}-zone-state}"
+ALARM_TOPIC="${ALARM_TOPIC:-${PROJECT_NAME}-${ENVIRONMENT}-zone-alarms}"
+COMMAND_FUNCTION="${COMMAND_FUNCTION:-${PROJECT_NAME}-${ENVIRONMENT}-alarm-to-command}"
+ALARM_TOPIC_ARN="arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:${ALARM_TOPIC}"
+```
+
+```text
+(no output)
+```
+
+## 1. Cloud commands automation
+
+### Alarms and SNS topic
+
+Deleting the topic also deletes its email and Lambda subscriptions
+([DeleteTopic](https://docs.aws.amazon.com/sns/latest/api/API_DeleteTopic.html)).
+
+```bash frame="terminal"
+ALARMS=$(aws cloudwatch describe-alarms --alarm-name-prefix "${PROJECT_NAME}-${ENVIRONMENT}-hot-" \
+  --query "MetricAlarms[].AlarmName" --output text)
+[ -n "$ALARMS" ] && aws cloudwatch delete-alarms --alarm-names $ALARMS
+aws sns delete-topic --topic-arn "$ALARM_TOPIC_ARN" || true
+```
+
+```text
+(no output)
+```
+
+### Lambda, its role, and its log group
+
+```bash frame="terminal"
+aws lambda delete-function --function-name "$COMMAND_FUNCTION" || true
+aws iam delete-role-policy --role-name "$COMMAND_FUNCTION" \
+  --policy-name iot-publish-command || true
+aws iam detach-role-policy --role-name "$COMMAND_FUNCTION" \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole || true
+aws iam delete-role --role-name "$COMMAND_FUNCTION" || true
+aws logs delete-log-group --log-group-name "/aws/lambda/${COMMAND_FUNCTION}" || true
+```
+
+```text
+(no output)
+```
+
+## 2. IoT rules and their role
+
+### Delete every walkthrough rule
+
+```bash frame="terminal"
+for r in $(aws iot list-topic-rules \
+  --query "rules[?starts_with(ruleName, '${RULE_PREFIX}_')].ruleName" --output text); do
+  aws iot delete-topic-rule --rule-name "$r" && echo "deleted $r"
+done
+```
+
+```text
+deleted gg_edge_wt_dev_ack_ddb
+deleted gg_edge_wt_dev_actuator_ddb
+deleted gg_edge_wt_dev_inference_ddb
+deleted gg_edge_wt_dev_telemetry_cw
+deleted gg_edge_wt_dev_telemetry_ddb
+deleted gg_edge_wt_dev_telemetry_s3
+```
+
+### Delete the rule role
+
+```bash frame="terminal"
+for p in iot-rule-s3 iot-rule-dynamodb iot-rule-cloudwatch; do
+  aws iam delete-role-policy --role-name "$IOT_RULE_ROLE" --policy-name "$p" || true
+done
+aws iam delete-role --role-name "$IOT_RULE_ROLE" || true
+```
+
+```text
+(no output)
+```
+
+The `GgEdge/Greenhouse` metrics cannot be deleted. They stop receiving data
+once the rule is gone, and CloudWatch ages them out.
+
+## 3. DynamoDB zone state
+
+```bash frame="terminal"
+aws dynamodb delete-table --table-name "$ZONE_TABLE" \
+  --query TableDescription.TableStatus --output text || true
+aws dynamodb wait table-not-exists --table-name "$ZONE_TABLE"
+```
+
+```text
+DELETING
+```
+
+## 4. SageMaker role and training logs
+
+Training jobs stay in the SageMaker history and cannot be deleted. They do not
+run or bill after completion. Local-train runs leave no SageMaker job.
+
+```bash frame="terminal"
+aws iam delete-role-policy --role-name "$SAGEMAKER_ROLE" \
+  --policy-name zone-anomaly-training || true
+aws iam delete-role --role-name "$SAGEMAKER_ROLE" || true
+for s in $(aws logs describe-log-streams --log-group-name /aws/sagemaker/TrainingJobs \
+  --log-stream-name-prefix zone-anomaly- --query "logStreams[].logStreamName" --output text 2>/dev/null); do
+  [ -n "$s" ] && aws logs delete-log-stream \
+    --log-group-name /aws/sagemaker/TrainingJobs --log-stream-name "$s"
+done
+```
+
+```text
+(no output)
+```
+
+## 5. Telemetry lake
+
+`rb --force` deletes every object, then the bucket.
+
+```bash frame="terminal"
+aws s3 rb "s3://${DATA_BUCKET}" --force || true
+```
+
+```text
+…
+remove_bucket: gg-edge-wt-dev-gg-data-123456789012
+```
+
+## 6. Edge stack from the cloud
+
+### Disassociate clients
+
+```bash frame="terminal"
+aws greengrassv2 batch-disassociate-client-device-from-core-device \
+  --core-device-thing-name "$CORE_THING_NAME" \
+  --entries thingName="$CLIENT_THING_NAME"
+[ -n "${CLIENT_THING_NAME_2:-}" ] && \
+  aws greengrassv2 batch-disassociate-client-device-from-core-device \
+    --core-device-thing-name "$CORE_THING_NAME" \
+    --entries thingName="$CLIENT_THING_NAME_2"
+```
+
+```text
+{
+    "disassociatedClientDevices": […],
+    "errorEntries": []
+}
+```
+
+### Empty deployment (remove components from the group)
+
+```bash frame="terminal"
+CORE_THING_GROUP_ARN=$(aws iot describe-thing-group \
+  --thing-group-name "$CORE_THING_GROUP" \
+  --query thingGroupArn --output text)
+aws greengrassv2 create-deployment \
+  --target-arn "$CORE_THING_GROUP_ARN" \
+  --deployment-name "gg-edge-empty" \
+  --components '{}'
+```
+
+```text
+{
+    "deploymentId": "…"
+}
+```
+
+Wait until `list-effective-deployments` shows `gg-edge-empty` → `SUCCEEDED`
+before deleting component versions.
+
+### Private component versions
+
+```bash frame="terminal"
+for c in com.example.ZoneAnomaly:1.0.0 com.example.GgEdgeLoop:1.1.0; do
+  aws greengrassv2 delete-component \
+    --arn "arn:aws:greengrass:${AWS_REGION}:${AWS_ACCOUNT_ID}:components:${c%%:*}:versions:${c##*:}" || true
+done
+aws greengrassv2 list-components --scope PRIVATE --query "components[].componentName" --output text
+```
+
+```text
+(no output)
+```
+
+### Artifact bucket, core S3 access, and LogManager log groups
+
+```bash frame="terminal"
+aws s3 rb "s3://${ARTIFACT_BUCKET}" --force || true
+aws iam delete-role-policy \
+  --role-name "${PROJECT_NAME}-${ENVIRONMENT}-token-exchange" \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-gg-artifacts-s3" || true
+for g in GreengrassSystemComponent/${AWS_REGION}/System \
+         UserComponent/${AWS_REGION}/com.example.GgEdgeLoop \
+         UserComponent/${AWS_REGION}/com.example.ZoneAnomaly; do
+  aws logs delete-log-group --log-group-name "/aws/greengrass/$g" || true
+done
+```
+
+```text
+remove_bucket: gg-edge-wt-dev-gg-artifacts-123456789012
+```
+
+## 7. Stop Nucleus (on the NUC)
+
+```bash frame="terminal"
+sudo systemctl stop greengrass.service
+sudo systemctl disable greengrass.service
+# Optional full wipe:
+# sudo rm -rf /greengrass
+```
+
+```text
+Removed "/etc/systemd/system/multi-user.target.wants/greengrass.service".
+```
+
+Run this over SSH on the NUC if you still have access.
+
+## 8. Detach and delete certificates
+
+For each of core and client (example for client):
+
+### Resolve client cert ARN and ID
+
+```bash frame="terminal"
+CLIENT_CERT_ARN=$(jq -r .certificateArn "$CLIENT_CERTS_DIR/create-cert.json")
+CLIENT_CERT_ID=$(jq -r .certificateId "$CLIENT_CERTS_DIR/create-cert.json")
+echo "$CLIENT_CERT_ARN"
+echo "$CLIENT_CERT_ID"
+```
+
+```text
+arn:aws:iot:ap-southeast-2:123456789012:cert/fedcba9876543210…
+fedcba9876543210…
+```
+
+### Detach, inactivate, and delete the client cert
+
+```bash frame="terminal"
+aws iot detach-thing-principal \
+  --thing-name "$CLIENT_THING_NAME" \
+  --principal "$CLIENT_CERT_ARN"
+aws iot detach-policy \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-client-policy" \
+  --target "$CLIENT_CERT_ARN"
+aws iot update-certificate --certificate-id "$CLIENT_CERT_ID" --new-status INACTIVE
+aws iot delete-certificate --certificate-id "$CLIENT_CERT_ID"
+```
+
+```text
+(no output)
+```
+
+Repeat with `$CORE_CERTS_DIR` / `$CORE_THING_NAME` (detach core + token
+policies). Repeat for `$CLIENT_CERTS_DIR_2` and `$CLIENT_THING_NAME_2` before
+deleting those Things.
+
+## 9. Delete Things, group, policies, roles
+
+### Delete the core device record, Things, and Thing group
+
+```bash frame="terminal"
+aws greengrassv2 delete-core-device --core-device-thing-name "$CORE_THING_NAME" || true
+aws iot delete-thing --thing-name "$CLIENT_THING_NAME"
+[ -n "${CLIENT_THING_NAME_2:-}" ] && aws iot delete-thing --thing-name "$CLIENT_THING_NAME_2"
+aws iot remove-thing-from-thing-group \
+  --thing-group-name "$CORE_THING_GROUP" \
+  --thing-name "$CORE_THING_NAME" || true
+aws iot delete-thing --thing-name "$CORE_THING_NAME"
+aws iot delete-thing-group --thing-group-name "$CORE_THING_GROUP"
+```
+
+```text
+(no output)
+```
+
+### Delete role alias, IoT policies, and token-exchange role
+
+```bash frame="terminal"
+aws iot delete-role-alias \
+  --role-alias "${ROLE_ALIAS_NAME:-${PROJECT_NAME}-${ENVIRONMENT}-token-alias}" || true
+for p in ${PROJECT_NAME}-${ENVIRONMENT}-core-policy \
+         ${PROJECT_NAME}-${ENVIRONMENT}-client-policy \
+         ${PROJECT_NAME}-${ENVIRONMENT}-token-exchange-policy; do
+  aws iot delete-policy --policy-name "$p" || true
+done
+aws iam delete-role-policy \
+  --role-name "${PROJECT_NAME}-${ENVIRONMENT}-token-exchange" \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-token-exchange-access" || true
+aws iam delete-role \
+  --role-name "${PROJECT_NAME}-${ENVIRONMENT}-token-exchange" || true
+```
+
+```text
+(no output)
+```
+
+### Greengrass account service role (if this lab created it)
+
+```bash frame="terminal"
+aws greengrassv2 disassociate-service-role-from-account || true
+aws iam detach-role-policy \
+  --role-name "${PROJECT_NAME}-${ENVIRONMENT}-gg-service" \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSGreengrassResourceAccessRolePolicy || true
+aws iam delete-role --role-name "${PROJECT_NAME}-${ENVIRONMENT}-gg-service" || true
+```
+
+```text
+(no output)
+```
+
+## 10. Local cleanup
+
+```bash frame="terminal"
+rm -rf certs/core/* certs/client/* certs/client-2/* certs/client-3/*
+aws greengrassv2 list-core-devices --status HEALTHY
+```
+
+```text
+{
+    "coreDevices": []
+}
+```
+
+Sanity check — all should be empty for this project prefix:
+
+```bash frame="terminal"
+aws iot list-things --query "things[?starts_with(thingName, '${PROJECT_NAME}')].thingName" --output text
+aws iot list-topic-rules --query "rules[?starts_with(ruleName, '${RULE_PREFIX}_')].ruleName" --output text
+aws s3 ls | grep "${PROJECT_NAME}-${ENVIRONMENT}" || true
+aws iam list-roles --query "Roles[?contains(RoleName, '${PROJECT_NAME}')].RoleName" --output text
+```
+
+```text
+(no output)
+```

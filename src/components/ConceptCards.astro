@@ -1,0 +1,293 @@
+---
+/**
+ * ConceptCards — Greengrass V2 concepts as used in this lab, grouped into
+ * Edge (on the NUC) and Cloud (AWS). Replaces the dense terms table with a
+ * scannable card grid.
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/, used under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+type Status = "used" | "optional" | "not-used";
+interface Concept {
+  name: string;
+  icon: string;
+  lab: string;
+  links: { label: string; href: string }[];
+  status?: Status;
+}
+
+const edge: Concept[] = [
+  {
+    name: "Core device",
+    icon: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+    lab: "NUC6CAY + Nucleus",
+    links: [{ label: "Install Nucleus", href: "/nucleus/" }],
+  },
+  {
+    name: "Client device",
+    icon: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+    lab: "Up to three ESP32-S3 zones: button, chip-temperature telemetry, RGB",
+    links: [
+      { label: "Associate", href: "/associate/" },
+      { label: "Flash zones", href: "/flash/" },
+    ],
+  },
+  {
+    name: "Component",
+    icon: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Component_48.svg`,
+    lab: "Auth, Moquette, Bridge, IPDetector, Cli, LogManager, GgEdgeLoop, ZoneAnomaly (ONNX)",
+    links: [
+      { label: "Loop", href: "/loop/" },
+      { label: "Inference", href: "/inference/" },
+    ],
+  },
+  {
+    name: "Deployment",
+    icon: `${ICONS}/group/iot/AWS-IoT-Greengrass-Deployment_32.svg`,
+    lab: "Local greengrass-cli first, then Thing-group cloud deployment from S3 artifacts",
+    links: [
+      { label: "MQTT stack", href: "/mqtt-stack/" },
+      { label: "Deploy from cloud", href: "/deploy-cloud/" },
+    ],
+  },
+  {
+    name: "Nucleus lite",
+    icon: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+    lab: "Not used — classic Nucleus on Ubuntu x86",
+    links: [],
+    status: "not-used",
+  },
+];
+
+const cloud: Concept[] = [
+  {
+    name: "IoT Core",
+    icon: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+    lab: "Identities, discovery, bridged topics, IoT rules, cloud → edge commands",
+    links: [
+      { label: "Identities", href: "/identities/" },
+      { label: "Commands", href: "/command/" },
+    ],
+  },
+  {
+    name: "Amazon S3",
+    icon: `${ICONS}/service/storage/Arch_Amazon-Simple-Storage-Service_64.svg`,
+    lab: "Component artifacts and the telemetry lake that SageMaker trains on",
+    links: [
+      { label: "Deploy from cloud", href: "/deploy-cloud/" },
+      { label: "Archive", href: "/archive/" },
+    ],
+  },
+  {
+    name: "DynamoDB",
+    icon: `${ICONS}/service/database/Arch_Amazon-DynamoDB_64.svg`,
+    lab: "Latest state per zone: telemetry, actuator source, cloud ack, edge inference",
+    links: [{ label: "Zone state", href: "/zone-state/" }],
+  },
+  {
+    name: "CloudWatch",
+    icon: `${ICONS}/service/management/Arch_Amazon-CloudWatch_64.svg`,
+    lab: "Zone temperature metric + alarm → SNS; LogManager component logs",
+    links: [
+      { label: "Raise an alarm", href: "/alarm/" },
+      { label: "Logs", href: "/deploy-cloud/" },
+    ],
+  },
+  {
+    name: "Lambda",
+    icon: `${ICONS}/service/compute/Arch_AWS-Lambda_64.svg`,
+    lab: "Alarm (via SNS) → command on gg-edge/cloud/command/<thing>",
+    links: [{ label: "Commands", href: "/command/" }],
+  },
+  {
+    name: "SageMaker",
+    icon: `${ICONS}/service/ai/Arch_Amazon-SageMaker-AI_64.svg`,
+    lab: "Trains per-zone anomaly models on the S3 lake → ONNX → Greengrass. Not Edge Manager (discontinued).",
+    links: [{ label: "Inference", href: "/inference/" }],
+  },
+];
+
+const statusLabel: Record<Status, string> = {
+  used: "core",
+  optional: "optional",
+  "not-used": "not used",
+};
+---
+
+<div class="cc not-content">
+  <section class="cc-group">
+    <h3 class="cc-group-head">On the NUC — edge</h3>
+    <div class="cc-grid">
+      {
+        edge.map((c) => (
+          <article class={`cc-card cc-card--${c.status ?? "used"}`}>
+            <img src={c.icon} alt="" width="34" height="34" loading="lazy" />
+            <div class="cc-body">
+              <span class="cc-name">
+                {c.name}
+                {c.status && <span class={`cc-pill cc-pill--${c.status}`}>{statusLabel[c.status]}</span>}
+              </span>
+              <span class="cc-lab">{c.lab}</span>
+              {c.links.length > 0 && (
+                <span class="cc-links">
+                  {c.links.map((l) => (
+                    <a href={l.href}>{l.label}</a>
+                  ))}
+                </span>
+              )}
+            </div>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="cc-group">
+    <h3 class="cc-group-head">In AWS — cloud</h3>
+    <div class="cc-grid">
+      {
+        cloud.map((c) => (
+          <article class={`cc-card cc-card--${c.status ?? "used"}`}>
+            <img src={c.icon} alt="" width="34" height="34" loading="lazy" />
+            <div class="cc-body">
+              <span class="cc-name">
+                {c.name}
+                {c.status && <span class={`cc-pill cc-pill--${c.status}`}>{statusLabel[c.status]}</span>}
+              </span>
+              <span class="cc-lab">{c.lab}</span>
+              {c.links.length > 0 && (
+                <span class="cc-links">
+                  {c.links.map((l) => (
+                    <a href={l.href}>{l.label}</a>
+                  ))}
+                </span>
+              )}
+            </div>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+</div>
+
+<style>
+  .cc {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .cc-group-head {
+    margin: 0 0 0.6rem;
+    font-family: var(--sl-font-headings);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+  }
+
+  .cc-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  @media (min-width: 34rem) {
+    .cc-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 60rem) {
+    .cc-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .cc-card {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.75rem 0.8rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.7rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .cc-card img {
+    flex: 0 0 auto;
+    display: block;
+  }
+
+  .cc-card--not-used {
+    opacity: 0.72;
+    border-style: dashed;
+  }
+
+  .cc-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .cc-name {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  .cc-pill {
+    font-family: var(--sl-font);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.3rem;
+  }
+
+  .cc-pill--optional {
+    color: var(--sl-color-text-accent);
+    background: color-mix(in oklab, var(--sl-color-accent) 16%, transparent);
+  }
+
+  .cc-pill--not-used {
+    color: var(--sl-color-gray-3);
+    background: color-mix(in oklab, var(--sl-color-gray-4) 20%, transparent);
+  }
+
+  .cc-lab {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    line-height: 1.4;
+  }
+
+  .cc-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.6rem;
+    margin-top: 0.1rem;
+  }
+
+  .cc-links a {
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    text-decoration: none;
+    border-bottom: 1px dashed color-mix(in oklab, var(--sl-color-accent) 50%, transparent);
+  }
+
+  .cc-links a:hover {
+    border-bottom-style: solid;
+  }
+</style>

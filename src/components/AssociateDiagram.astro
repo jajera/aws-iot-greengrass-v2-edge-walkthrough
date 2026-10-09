@@ -1,0 +1,233 @@
+---
+/**
+ * AssociateDiagram — the discovery handshake: a client Thing is associated with
+ * the core, then uses the discovery endpoint (client cert, :8443) to get the
+ * core's LAN connectivity and connect to Moquette (:8883).
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/, used under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  client: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+  core: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  iotCore: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+  mqtt: `${ICONS}/resource/iot/Res_AWS-IoT_MQTT_Protocol_48.svg`,
+};
+---
+
+<figure class="as not-content" aria-labelledby="as-caption">
+  <div class="as-flow">
+    {/* Client device */}
+    <div class="as-node as-node--client">
+      <img src={img.client} alt="" width="40" height="40" loading="lazy" />
+      <span class="as-name">ESP32-S3</span>
+      <span class="as-sub">client Thing + cert</span>
+    </div>
+
+    <span class="as-link" data-label="① associate (cloud)">→</span>
+
+    {/* Cloud: association + discovery endpoint */}
+    <div class="as-node as-node--cloud">
+      <img src={img.iotCore} alt="" width="40" height="40" loading="lazy" />
+      <span class="as-name">IoT Core</span>
+      <span class="as-sub">associate · discovery :8443</span>
+    </div>
+
+    <span class="as-link as-link--return" data-label="② core connectivity">←</span>
+
+    {/* Core */}
+    <div class="as-node as-node--core">
+      <img src={img.core} alt="" width="40" height="40" loading="lazy" />
+      <span class="as-name">NUC core</span>
+      <span class="as-sub">
+        <img class="as-ico-s" src={img.mqtt} alt="" width="15" height="15" loading="lazy" />
+        Moquette :8883
+      </span>
+    </div>
+  </div>
+
+  <div class="as-direct">
+    <span class="as-direct-label">③ LAN mTLS to the host:port from discovery</span>
+  </div>
+
+  <figcaption id="as-caption">
+    <ul>
+      <li><strong>Associate</strong> the client Thing with the core (cloud API).</li>
+      <li><strong>Discover</strong>: client cert → <code>:8443</code> returns the core's <code>HostAddress</code> + <code>8883</code>.</li>
+      <li><strong>Connect</strong>: client then talks local MQTT to Moquette on the LAN.</li>
+    </ul>
+  </figcaption>
+</figure>
+
+<style>
+  .as {
+    margin: 1.5rem 0;
+  }
+
+  .as-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 1.1rem 0.9rem 0.8rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-top-left-radius: 0.85rem;
+    border-top-right-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .as-node {
+    width: min(100%, 20rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    text-align: center;
+    padding: 0.8rem 0.65rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .as-node--client {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, transparent);
+  }
+
+  .as-node--core {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 40%, transparent);
+  }
+
+  .as-node--cloud {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 28%, transparent);
+  }
+
+  .as-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  .as-sub {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    line-height: 1.3;
+  }
+
+  .as-ico-s {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  /* ---- Connectors: "label ↓" between stacked nodes. The element's own text is
+     the inline → / ← glyph — hide it and draw the label + down arrow. ---- */
+  .as-link {
+    flex: 0 0 auto;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    line-height: 1;
+    font-size: 0;
+  }
+
+  .as-link::before {
+    content: attr(data-label);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--sl-color-text-accent);
+    white-space: nowrap;
+  }
+
+  .as-link::after {
+    content: "↓";
+    font-size: 1.05rem;
+    line-height: 1;
+    color: var(--sl-color-accent);
+  }
+
+  .as-link--return::before,
+  .as-link--return::after {
+    color: var(--sl-color-gray-3);
+  }
+
+  /* ---- Direct LAN connection strip under the flow ---- */
+  .as-direct {
+    display: flex;
+    justify-content: center;
+    padding: 0.5rem 0.9rem 0.8rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-top: 0;
+    border-bottom-left-radius: 0.85rem;
+    border-bottom-right-radius: 0.85rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .as-direct-label {
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    text-align: center;
+    padding: 0.3rem 0.7rem;
+    border: 1px dashed color-mix(in oklab, var(--sl-color-accent) 45%, transparent);
+    border-radius: 0.5rem;
+    background: color-mix(in oklab, var(--sl-color-accent) 6%, transparent);
+  }
+
+  figcaption {
+    margin-top: 0.9rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+
+  figcaption ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  figcaption li {
+    position: relative;
+    padding-left: 1.1rem;
+    line-height: 1.4;
+  }
+
+  figcaption li::before {
+    content: "›";
+    position: absolute;
+    left: 0.2rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+  }
+
+  figcaption strong {
+    color: var(--sl-color-white);
+  }
+
+  figcaption code {
+    font-size: 0.82em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+</style>

@@ -1,0 +1,14 @@
+---
+description: Ground AWS behavioural claims in docs or verified facts
+alwaysApply: true
+---
+
+# AWS source lock
+
+Do not invent Greengrass V2 / IoT Core CLI flags, discovery URLs, or pricing from memory.
+
+1. Prefer facts in `.kiro/steering/aws-source-lock.md`.
+2. Else link docs.aws.amazon.com (use aws-docs MCP when available).
+3. Mark unverified steps explicitly until an evidence pass.
+
+When editing `docs/**`, re-check claims before finishing the change.

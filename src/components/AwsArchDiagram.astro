@@ -1,0 +1,355 @@
+---
+/**
+ * AwsArchDiagram — overall lab architecture: ESP32 → Greengrass core → IoT Core
+ * → rules → consumers, plus control and ML return paths.
+ * Icons from https://aws-icons.johna.kiwi/ under AWS Trademark Guidelines.
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  client: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+  core: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  component: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Component_48.svg`,
+  iot: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+  s3: `${ICONS}/service/storage/Arch_Amazon-Simple-Storage-Service_64.svg`,
+  ddb: `${ICONS}/service/database/Arch_Amazon-DynamoDB_64.svg`,
+  cw: `${ICONS}/service/management/Arch_Amazon-CloudWatch_64.svg`,
+  sns: `${ICONS}/service/integration/Arch_Amazon-Simple-Notification-Service_64.svg`,
+  lambda: `${ICONS}/service/compute/Arch_AWS-Lambda_64.svg`,
+  sm: `${ICONS}/service/ai/Arch_Amazon-SageMaker-AI_64.svg`,
+};
+---
+
+<figure class="oa not-content" aria-labelledby="oa-caption">
+  {/* ---- Main pipeline ---- */}
+  <div class="oa-pipeline">
+    <div class="oa-node oa-node--edge">
+      <img src={img.client} alt="" width="44" height="44" loading="lazy" />
+      <span class="oa-name">ESP32-S3 zones</span>
+      <span class="oa-sub">BOOT · temp · RGB</span>
+    </div>
+
+    <span class="oa-hop" data-label="LAN mTLS MQTT">→</span>
+
+    <div class="oa-group">
+      <header class="oa-group-head">
+        <img src={img.core} alt="" width="36" height="36" loading="lazy" />
+        <span>NUC · Greengrass V2</span>
+      </header>
+      <div class="oa-group-items">
+        <span>Moquette</span>
+        <span>MQTT Bridge</span>
+        <span>GgEdgeLoop</span>
+        <span>ZoneAnomaly</span>
+        <span>LogManager</span>
+      </div>
+    </div>
+
+    <span class="oa-hop" data-label="bridge ↑ telemetry · ↓ command">→</span>
+
+    <div class="oa-node oa-node--hub">
+      <img src={img.iot} alt="" width="44" height="44" loading="lazy" />
+      <span class="oa-name">IoT Core</span>
+      <span class="oa-sub">topics</span>
+    </div>
+
+    <span class="oa-hop" data-label="IoT rules">→</span>
+
+    <div class="oa-fanout" aria-label="Rule destinations">
+      <div class="oa-node oa-node--sm">
+        <img src={img.s3} alt="" width="36" height="36" loading="lazy" />
+        <span class="oa-name">S3</span>
+        <span class="oa-sub">telemetry lake</span>
+      </div>
+      <div class="oa-node oa-node--sm">
+        <img src={img.ddb} alt="" width="36" height="36" loading="lazy" />
+        <span class="oa-name">DynamoDB</span>
+        <span class="oa-sub">zone state</span>
+      </div>
+      <div class="oa-node oa-node--sm">
+        <img src={img.cw} alt="" width="36" height="36" loading="lazy" />
+        <span class="oa-name">CloudWatch</span>
+        <span class="oa-sub">metric · alarm · logs</span>
+      </div>
+    </div>
+  </div>
+
+  {/* ---- Control return (blue) ---- */}
+  <div class="oa-return oa-return--control">
+    <span class="oa-return-label">Control · blue RGB</span>
+    <div class="oa-return-row">
+      <div class="oa-node oa-node--sm">
+        <img src={img.cw} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">Alarm</span>
+      </div>
+      <span class="oa-hop" data-label="">→</span>
+      <div class="oa-node oa-node--sm">
+        <img src={img.sns} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">SNS</span>
+      </div>
+      <span class="oa-hop" data-label="">→</span>
+      <div class="oa-node oa-node--sm">
+        <img src={img.lambda} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">Lambda</span>
+      </div>
+      <span class="oa-hop" data-label="cloud/command">→</span>
+      <div class="oa-node oa-node--sm">
+        <img src={img.iot} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">IoT Core</span>
+      </div>
+      <span class="oa-hop" data-label="bridge ↓">→</span>
+      <div class="oa-node oa-node--sm">
+        <img src={img.core} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">GgEdgeLoop</span>
+        <span class="oa-sub">blue RGB</span>
+      </div>
+    </div>
+  </div>
+
+  {/* ---- ML return (red) ---- */}
+  <div class="oa-return oa-return--ml">
+    <span class="oa-return-label">ML · red RGB</span>
+    <div class="oa-return-row">
+      <div class="oa-node oa-node--sm">
+        <img src={img.s3} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">S3 lake</span>
+      </div>
+      <span class="oa-hop" data-label="train">→</span>
+      <div class="oa-node oa-node--sm">
+        <img src={img.sm} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">SageMaker</span>
+      </div>
+      <span class="oa-hop" data-label="ONNX">→</span>
+      <div class="oa-node oa-node--sm">
+        <img src={img.s3} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">S3 artifacts</span>
+      </div>
+      <span class="oa-hop" data-label="deploy">→</span>
+      <div class="oa-node oa-node--sm">
+        <img src={img.component} alt="" width="32" height="32" loading="lazy" />
+        <span class="oa-name">ZoneAnomaly</span>
+        <span class="oa-sub">red RGB</span>
+      </div>
+    </div>
+  </div>
+
+  <figcaption id="oa-caption">
+    Zones stay on the LAN. The bridge is the only path into IoT Core. Rules fan
+    out telemetry; alarm and SageMaker close the loop back to the zones.
+  </figcaption>
+</figure>
+
+<style>
+  .oa {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .oa-pipeline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 1.15rem 1rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.9rem;
+    background:
+      radial-gradient(
+        ellipse 90% 55% at 50% -8%,
+        var(--patina-accent-soft, color-mix(in oklab, var(--sl-color-accent) 12%, transparent)),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .oa-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    min-width: 6.5rem;
+    padding: 0.7rem 0.55rem;
+    text-align: center;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .oa-node--edge {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-hairline));
+  }
+
+  .oa-node--hub {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 50%, var(--sl-color-hairline));
+    min-width: 7.5rem;
+  }
+
+  .oa-node--sm {
+    min-width: 5.5rem;
+    padding: 0.55rem 0.4rem;
+  }
+
+  .oa-node img {
+    display: block;
+  }
+
+  .oa-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+  }
+
+  .oa-sub {
+    font-size: 0.65rem;
+    color: var(--sl-color-gray-3);
+    line-height: 1.25;
+  }
+
+  .oa-group {
+    flex: 0 1 12rem;
+    min-width: 10rem;
+    padding: 0.65rem 0.7rem;
+    border: 1px dashed color-mix(in oklab, var(--sl-color-accent) 55%, var(--sl-color-hairline));
+    border-radius: 0.7rem;
+    background: color-mix(in oklab, var(--sl-color-accent) 7%, var(--sl-color-bg));
+  }
+
+  .oa-group-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.45rem;
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+  }
+
+  .oa-group-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .oa-group-items span {
+    font-size: 0.62rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: 0.3rem;
+    border: 1px solid var(--sl-color-hairline);
+    background: var(--sl-color-bg);
+    color: var(--sl-color-gray-2);
+  }
+
+  .oa-hop {
+    flex: 0 0 auto;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+
+  .oa-hop::before {
+    content: attr(data-label);
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    text-align: center;
+    max-width: 6.5rem;
+    line-height: 1.2;
+  }
+
+  .oa-hop[data-label=""]::before {
+    content: none;
+  }
+
+  .oa-fanout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .oa-return {
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .oa-return--control {
+    border-color: color-mix(in oklab, #3b82f6 35%, var(--sl-color-hairline));
+  }
+
+  .oa-return--ml {
+    border-color: color-mix(in oklab, #ef4444 30%, var(--sl-color-hairline));
+  }
+
+  .oa-return-label {
+    display: block;
+    margin-bottom: 0.55rem;
+    font-family: var(--sl-font-headings);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+  }
+
+  .oa-return--control .oa-return-label {
+    color: #60a5fa;
+  }
+
+  .oa-return--ml .oa-return-label {
+    color: #f87171;
+  }
+
+  .oa-return-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+
+  figcaption {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.45;
+  }
+
+  @media (max-width: 48rem) {
+    .oa-pipeline {
+      flex-direction: column;
+    }
+
+    .oa-hop {
+      flex-direction: row;
+      gap: 0.35rem;
+      font-size: 0;
+    }
+
+    .oa-hop::before {
+      font-size: 0.62rem;
+      max-width: none;
+    }
+
+    .oa-hop::after {
+      content: "↓";
+      font-size: 1.1rem;
+      color: var(--sl-color-accent);
+    }
+
+    .oa-hop[data-label=""]::after {
+      content: "↓";
+    }
+  }
+</style>

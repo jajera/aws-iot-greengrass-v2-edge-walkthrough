@@ -1,0 +1,143 @@
+---
+/**
+ * InferenceDiagram — this page: S3 lake → train → ONNX on core → red RGB + DDB.
+ * Icons from https://aws-icons.johna.kiwi/ under AWS Trademark Guidelines.
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  s3: `${ICONS}/service/storage/Arch_Amazon-Simple-Storage-Service_64.svg`,
+  sm: `${ICONS}/service/ai/Arch_Amazon-SageMaker-AI_64.svg`,
+  core: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  client: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+  ddb: `${ICONS}/service/database/Arch_Amazon-DynamoDB_64.svg`,
+};
+---
+
+<figure class="inf not-content" aria-labelledby="inf-caption">
+  <div class="inf-row">
+    <div class="inf-node">
+      <img src={img.s3} alt="" width="36" height="36" loading="lazy" />
+      <span class="inf-name">S3 lake</span>
+      <span class="inf-sub">telemetry/</span>
+    </div>
+    <span class="inf-hop" data-label="train.py">→</span>
+    <div class="inf-node">
+      <img src={img.sm} alt="" width="36" height="36" loading="lazy" />
+      <span class="inf-name">Train</span>
+      <span class="inf-sub">SageMaker or local</span>
+    </div>
+    <span class="inf-hop" data-label="ONNX zip">→</span>
+    <div class="inf-node inf-node--hub">
+      <img src={img.core} alt="" width="36" height="36" loading="lazy" />
+      <span class="inf-name">ZoneAnomaly</span>
+      <span class="inf-sub">onnxruntime</span>
+    </div>
+    <span class="inf-hop" data-label="~20 s">→</span>
+    <div class="inf-node inf-node--red">
+      <img src={img.client} alt="" width="36" height="36" loading="lazy" />
+      <span class="inf-name">red RGB</span>
+    </div>
+    <span class="inf-hop" data-label="inference/+">→</span>
+    <div class="inf-node">
+      <img src={img.ddb} alt="" width="36" height="36" loading="lazy" />
+      <span class="inf-name">DynamoDB</span>
+    </div>
+  </div>
+
+  <figcaption id="inf-caption">
+    Edge scores every telemetry sample. Two anomalies in a row turn the zone
+    red — before the cloud alarm can fire.
+  </figcaption>
+</figure>
+
+<style>
+  .inf {
+    margin: 1.5rem 0;
+  }
+
+  .inf-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 1.1rem 0.95rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.9rem;
+    background:
+      radial-gradient(
+        ellipse 90% 55% at 50% -8%,
+        var(--patina-accent-soft, color-mix(in oklab, var(--sl-color-accent) 12%, transparent)),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .inf-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    width: min(100%, 20rem);
+    padding: 0.6rem 0.5rem;
+    text-align: center;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.6rem;
+    background: var(--sl-color-bg);
+  }
+
+  .inf-node--hub {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-hairline));
+  }
+
+  .inf-node--red {
+    border-color: color-mix(in oklab, #ef4444 45%, var(--sl-color-hairline));
+  }
+
+  .inf-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--sl-color-white);
+  }
+
+  .inf-sub {
+    font-size: 0.58rem;
+    color: var(--sl-color-gray-3);
+  }
+
+  /* "label ↓" between vertically stacked nodes. The element's own text is the
+     inline "→" glyph — hide it and draw the label + a down arrow via pseudos. */
+  .inf-hop {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    line-height: 1;
+    font-size: 0;
+  }
+
+  .inf-hop::before {
+    content: attr(data-label);
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    line-height: 1.2;
+  }
+
+  .inf-hop::after {
+    content: "↓";
+    font-size: 1rem;
+    color: var(--sl-color-accent);
+  }
+
+  figcaption {
+    margin-top: 0.75rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.45;
+  }
+</style>

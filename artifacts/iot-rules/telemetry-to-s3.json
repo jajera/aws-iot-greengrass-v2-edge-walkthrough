@@ -1,0 +1,15 @@
+{
+  "sql": "SELECT *, timestamp() AS ts FROM 'gg-edge/telemetry/+'",
+  "description": "Archive every zone telemetry message to S3 (SageMaker training data)",
+  "awsIotSqlVersion": "2016-03-23",
+  "ruleDisabled": false,
+  "actions": [
+    {
+      "s3": {
+        "bucketName": "DATA_BUCKET",
+        "key": "telemetry/thing=${topic(3)}/dt=${parse_time(\"yyyy-MM-dd\", timestamp())}/${timestamp()}.json",
+        "roleArn": "IOT_RULE_ROLE_ARN"
+      }
+    }
+  ]
+}

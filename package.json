@@ -1,0 +1,34 @@
+{
+  "name": "aws-iot-greengrass-v2-edge-walkthrough",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Greengrass V2 NUC6CAY core + ESP32-S3 client closed-loop walkthrough",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "astro build"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.3.1",
+    "@astrojs/starlight": "^0.42.1",
+    "astro": "^7.3.3",
+    "astro-mermaid": "^2.1.0",
+    "mermaid": "^11.17.2",
+    "sharp": "^0.35.4",
+    "starlight-base-path": "^0.2.1",
+    "starlight-image-zoom": "^0.16.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "js-yaml": "4.3.2",
+    "markdown-it": "^14.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

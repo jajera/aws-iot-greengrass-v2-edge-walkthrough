@@ -1,0 +1,16 @@
+{
+  "sql": "SELECT topic(3) AS thing, 'inference' AS kind, tempC, score, anomaly, model, timestamp() AS ts FROM 'gg-edge/inference/+'",
+  "description": "Latest edge inference per zone (score from the ONNX model on the core)",
+  "awsIotSqlVersion": "2016-03-23",
+  "ruleDisabled": false,
+  "actions": [
+    {
+      "dynamoDBv2": {
+        "putItem": {
+          "tableName": "ZONE_TABLE"
+        },
+        "roleArn": "IOT_RULE_ROLE_ARN"
+      }
+    }
+  ]
+}

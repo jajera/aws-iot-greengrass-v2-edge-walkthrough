@@ -1,0 +1,40 @@
+{
+  "TrainingJobName": "TRAINING_JOB_NAME",
+  "RoleArn": "SAGEMAKER_ROLE_ARN",
+  "AlgorithmSpecification": {
+    "TrainingImage": "SKLEARN_IMAGE_URI",
+    "TrainingInputMode": "File"
+  },
+  "HyperParameters": {
+    "sagemaker_program": "\"train.py\"",
+    "sagemaker_submit_directory": "\"s3://DATA_BUCKET/ml/source/sourcedir.tar.gz\"",
+    "sagemaker_region": "\"AWS_REGION\"",
+    "min-samples": "120",
+    "min-uptime-s": "300",
+    "k-sigma": "4.0"
+  },
+  "InputDataConfig": [
+    {
+      "ChannelName": "train",
+      "DataSource": {
+        "S3DataSource": {
+          "S3DataType": "S3Prefix",
+          "S3Uri": "s3://DATA_BUCKET/telemetry/",
+          "S3DataDistributionType": "FullyReplicated"
+        }
+      },
+      "ContentType": "application/json"
+    }
+  ],
+  "OutputDataConfig": {
+    "S3OutputPath": "s3://DATA_BUCKET/ml/output/"
+  },
+  "ResourceConfig": {
+    "InstanceType": "ml.m5.large",
+    "InstanceCount": 1,
+    "VolumeSizeInGB": 5
+  },
+  "StoppingCondition": {
+    "MaxRuntimeInSeconds": 1800
+  }
+}

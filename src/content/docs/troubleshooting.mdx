@@ -1,0 +1,194 @@
+---
+title: Troubleshooting
+description: Common failures for discovery, Auth, Moquette, bridge mapping, the loop, and the AWS pages.
+---
+
+import Tooltip from "@/components/Tooltip.astro";
+
+<table>
+  <thead>
+    <tr>
+      <th>Symptom</th>
+      <th>Likely cause</th>
+      <th>What to check</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <Tooltip term="discovery" label="Discovery" /> returns empty{" "}
+        <code>GGGroups</code>
+      </td>
+      <td>No association or IP detector not reporting</td>
+      <td>
+        <code>list-client-devices-associated-with-core-device</code>; component
+        list includes <Tooltip term="ip-detector" label="IPDetector" />; wait
+        1–2 minutes
+      </td>
+    </tr>
+    <tr>
+      <td>Discovery HTTP 403</td>
+      <td>
+        Client <Tooltip term="iot-policy" label="policy" /> missing{" "}
+        <code>greengrass:Discover</code>
+      </td>
+      <td>
+        Attach <code>artifacts/policies/client-device-policy.json</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <Tooltip term="mqtt" label="MQTT" /> connect to core fails
+      </td>
+      <td>
+        <Tooltip term="client-auth" label="Auth" /> selection rule / policy
+      </td>
+      <td>
+        Auth <code>selectionRule</code> Thing name;{" "}
+        <Tooltip term="moquette" label="Moquette" /> RUNNING; port from
+        discovery
+      </td>
+    </tr>
+    <tr>
+      <td>Sensor publishes, RGB never changes</td>
+      <td>
+        Loop <Tooltip term="component" label="component" /> or bridge
+      </td>
+      <td>
+        <code>com.example.GgEdgeLoop</code> logs;{" "}
+        <Tooltip term="mqtt-bridge" label="bridge" /> LocalMqtt↔Pubsub mappings
+      </td>
+    </tr>
+    <tr>
+      <td>Console MQTT quiet, RGB works</td>
+      <td>Bridge to IoT Core only</td>
+      <td>
+        Local loop is fine; check <code>SensorLocalToIotCore</code> mapping and
+        core IoT policy
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <Tooltip term="nucleus" label="Nucleus" /> not HEALTHY
+      </td>
+      <td>Cert / role alias / network</td>
+      <td>
+        <code>greengrass.service</code> logs under{" "}
+        <code>/greengrass/v2/logs/</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>greengrass-cli</code> not found
+      </td>
+      <td>Dev tools not installed</td>
+      <td>
+        Deploy <code>aws.greengrass.Cli</code> (
+        <code>--deploy-dev-tools</code> only works with{" "}
+        <code>--provision true</code>)
+      </td>
+    </tr>
+    <tr>
+      <td>Cloud deployment FAILED: artifact download / access denied</td>
+      <td>Token-exchange role cannot read the artifact bucket</td>
+      <td>
+        <code>gg-artifacts-s3</code> inline policy on the token-exchange role;
+        recipe <code>URI</code> has the real bucket, not{" "}
+        <code>ARTIFACT_BUCKET</code>
+      </td>
+    </tr>
+    <tr>
+      <td>Cloud deployment FAILED right after the local loop worked</td>
+      <td>Local deployment still owns <code>com.example.GgEdgeLoop</code></td>
+      <td>
+        <code>greengrass-cli deployment create --remove com.example.GgEdgeLoop</code>{" "}
+        on the NUC, then redeploy
+      </td>
+    </tr>
+    <tr>
+      <td>No objects in the data bucket / no DynamoDB items</td>
+      <td>Rule role not yet assumable, or wrong policy resource</td>
+      <td>
+        <code>aws iot get-topic-rule</code>; role trust has your account ID;
+        wait a minute after <code>create-role</code>. Add a rule{" "}
+        <code>errorAction</code> to CloudWatch Logs if it stays silent
+      </td>
+    </tr>
+    <tr>
+      <td>DynamoDB has <code>telemetry</code> but never <code>actuator</code></td>
+      <td>Bridge not forwarding component publishes to IoT Core</td>
+      <td>
+        Deployment has <code>ActuatorPubsubToIotCore</code>; Bridge log under{" "}
+        <code>/greengrass/v2/logs/</code>
+      </td>
+    </tr>
+    <tr>
+      <td>Alarm never leaves INSUFFICIENT_DATA</td>
+      <td>Metric name mismatch</td>
+      <td>
+        <code>get-metric-statistics</code> on{" "}
+        <code>ChipTempC-&lt;thing&gt;</code> in <code>GgEdge/Greenhouse</code>;
+        the CloudWatch rule exists
+      </td>
+    </tr>
+    <tr>
+      <td>Alarm email arrives, RGB never turns blue</td>
+      <td>Lambda not subscribed / no permission, or command not bridged</td>
+      <td>
+        <code>aws logs tail /aws/lambda/$COMMAND_FUNCTION</code>; SNS{" "}
+        <code>lambda</code> subscription; deployment has{" "}
+        <code>CommandIotCoreToPubsub</code>; GgEdgeLoop is 1.1.0
+      </td>
+    </tr>
+    <tr>
+      <td>SageMaker job Failed</td>
+      <td>Too few samples, role, or pip install</td>
+      <td>
+        <code>describe-training-job --query FailureReason</code>; job log in{" "}
+        <code>/aws/sagemaker/TrainingJobs</code>; wait for 120 post-boot samples
+        per zone
+      </td>
+    </tr>
+    <tr>
+      <td>ZoneAnomaly BROKEN on install</td>
+      <td>
+        No <code>python3-venv</code>, or no <code>onnxruntime</code> wheel for
+        the CPU
+      </td>
+      <td>
+        <code>/greengrass/v2/logs/com.example.ZoneAnomaly.log</code>;{" "}
+        <code>sudo apt-get install -y python3-venv</code>. The pinned{" "}
+        <code>onnxruntime</code> runs on the NUC6CAY (no AVX); on other CPUs
+        check the wheel exists for your architecture
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Useful commands
+
+### Core device status (workstation)
+
+```bash frame="terminal"
+aws greengrassv2 get-core-device --core-device-thing-name "$CORE_THING_NAME"
+```
+
+```text
+{
+    "coreDeviceThingName": "gg-edge-wt-dev-core",
+    "status": "HEALTHY",
+    …
+}
+```
+
+### Nucleus logs and components (NUC)
+
+```bash frame="terminal"
+sudo journalctl -u greengrass -n 100 --no-pager
+sudo /greengrass/v2/bin/greengrass-cli component list
+sudo tail -n 100 /greengrass/v2/logs/greengrass.log
+```
+
+```text
+… greengrass.service / component list / greengrass.log …
+```

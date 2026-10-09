@@ -1,0 +1,29 @@
+---
+RecipeFormatVersion: "2020-01-25"
+ComponentName: com.example.GgEdgeLoop
+ComponentVersion: "1.0.1"
+ComponentDescription: Closed-loop bridge from gg-edge/sensor to gg-edge/actuator/<thing>
+ComponentPublisher: jajera
+ComponentConfiguration:
+  DefaultConfiguration:
+    accessControl:
+      aws.greengrass.ipc.pubsub:
+        "com.example.GgEdgeLoop:pubsub:1":
+          operations:
+            - aws.greengrass#PublishToTopic
+            - aws.greengrass#SubscribeToTopic
+          resources:
+            - gg-edge/sensor
+            - "gg-edge/actuator/+"
+            - "*"
+Manifests:
+  - Platform:
+      os: linux
+    Lifecycle:
+      Run: python3 -u {artifacts:path}/loop.py
+    Artifacts:
+      - URI: "s3://ARTIFACT_BUCKET/artifacts/com.example.GgEdgeLoop/1.0.1/loop.py"
+        Unarchive: NONE
+        Permission:
+          Read: OWNER
+          Execute: NONE

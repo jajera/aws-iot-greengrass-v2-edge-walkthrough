@@ -1,0 +1,343 @@
+---
+title: Prerequisites
+description: Account, BOM, naming, and the mutation gate before you create resources.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Checklist from "@/components/Checklist.astro";
+import Tooltip from "@/components/Tooltip.astro";
+
+<Checklist
+  id="prerequisites"
+  items={[
+    "Tooling completed (incl. Python 3.12 + ESP-IDF)",
+    "AWS profile and Region confirmed",
+    "Mutation gate understood",
+    "walkthrough.env copied and loaded",
+    "NUC6CAY + ESP32-S3 on hand (OS prep is Prepare the core)",
+  ]}
+/>
+
+Before cloud steps, skim [Concepts](/concepts/)
+and [Why Greengrass?](/why-greengrass/) if the hub vs direct-IoT
+choice is still fuzzy.
+
+## Tools and access
+
+Finish [Tooling](/tooling/) first. Confirm access here before cloud
+steps.
+
+<table>
+  <thead>
+    <tr>
+      <th>Requirement</th>
+      <th>Detail</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <Tooltip term="aws-cli" label="AWS CLI" /> v2
+      </td>
+      <td>
+        <strong>latest</strong> — <code>iot</code> + <code>greengrassv2</code>
+      </td>
+    </tr>
+    <tr>
+      <td>jq</td>
+      <td>
+        <strong>1.6+</strong> — cert JSON
+      </td>
+    </tr>
+    <tr>
+      <td>Python</td>
+      <td>
+        <strong>3.12</strong> — Ubuntu 24.04 default on workstation (ESP-IDF)
+        and NUC (components); see{" "}
+        <a href="/tooling/">Tooling</a>
+      </td>
+    </tr>
+    <tr>
+      <td>ESP-IDF</td>
+      <td>
+        <strong>≥ 5.1</strong> (verified <strong>5.3.2</strong>) — ESP32-S3
+      </td>
+    </tr>
+    <tr>
+      <td>Profile</td>
+      <td>
+        Named profile with IoT / IAM / Greengrass permissions (example:{" "}
+        <code>lab</code>)
+      </td>
+    </tr>
+    <tr>
+      <td>Region</td>
+      <td>
+        <code>ap-southeast-2</code>
+      </td>
+    </tr>
+    <tr>
+      <td>Mutation gate</td>
+      <td>
+        <code>export GG_EDGE_ALLOW_AWS=1</code> before agents mutate AWS (see below)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <Tooltip term="nuc6cay" label="NUC6CAY" />
+      </td>
+      <td>
+        Hardware on hand — Ubuntu{" "}
+        <strong>Server</strong> via the{" "}
+        <a href="https://ubuntu-server-walkthrough.johna.kiwi/">
+          Ubuntu Server walkthrough
+        </a>
+        ; lab names in{" "}
+        <a href="/prepare-core/">Prepare the core</a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <Tooltip term="esp32-s3" label="ESP32-S3" />
+      </td>
+      <td>USB flash; Wi‑Fi to the NUC’s LAN</td>
+    </tr>
+  </tbody>
+</table>
+
+### Confirm profile
+
+```bash frame="terminal"
+export AWS_PROFILE=lab
+export AWS_REGION=ap-southeast-2
+aws sts get-caller-identity
+aws greengrassv2 help >/dev/null && echo greengrassv2_ok
+```
+
+```text
+{
+    "UserId": "AROAEXAMPLE:you",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/AWSReservedSSO_AdministratorAccess_…/you"
+}
+greengrassv2_ok
+```
+
+## Mutation gate
+
+Agents authoring this repo refuse mutating AWS CLI unless
+`GG_EDGE_ALLOW_AWS=1` is set. **You** run the walkthrough commands in your own
+shell; the gate is for agent sessions. Read-only `describe` / `list` / `get` /
+`sts` stay allowed without it.
+
+### Opt in for agent mutations
+
+```bash frame="terminal"
+export GG_EDGE_ALLOW_AWS=1
+```
+
+```text
+(no output)
+```
+
+<Aside type="caution" title="Unset gate">
+Without it, agent shell jobs stop with a refuse-to-mutate message and change
+nothing — deliberate, not an error.
+</Aside>
+
+## Bill of materials
+
+<table>
+  <thead>
+    <tr>
+      <th>Part</th>
+      <th>Role</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Intel NUC6CAY (spare unit on the shelf)</td>
+      <td>
+        Greengrass <Tooltip term="core-device" label="core" /> host
+      </td>
+    </tr>
+    <tr>
+      <td>ESP32-S3 DevKit (e.g. DevKitC-1)</td>
+      <td>
+        Greengrass <Tooltip term="client-device" label="client" /> zone
+        (one required; up to three zones)
+      </td>
+    </tr>
+    <tr>
+      <td>Momentary button (or onboard BOOT)</td>
+      <td>Sensor input — GPIO 0 on DevKitC-1</td>
+    </tr>
+    <tr>
+      <td>Onboard RGB (DevKitC-1)</td>
+      <td>Actuator — green = on (GPIO 48 default; 38 on DevKitC-1 v1.1)</td>
+    </tr>
+    <tr>
+      <td>USB cable</td>
+      <td>Flash / serial</td>
+    </tr>
+  </tbody>
+</table>
+
+## Naming config
+
+### Copy env example
+
+```bash frame="terminal"
+cp config/walkthrough.env.example config/walkthrough.env
+```
+
+```text
+(no output)
+```
+
+Edit `config/walkthrough.env` (gitignored). Then load it before every CLI page:
+
+### Load env and capture account ID
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+export AWS_ACCOUNT_ID
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+echo "$AWS_ACCOUNT_ID"
+```
+
+```text
+123456789012
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Example purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <code>AWS_REGION</code> / <code>AWS_PROFILE</code>
+      </td>
+      <td>CLI target</td>
+    </tr>
+    <tr>
+      <td>
+        <code>CORE_THING_NAME</code>
+      </td>
+      <td>
+        NUC core <Tooltip term="thing" label="Thing" />
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>CORE_THING_GROUP</code>
+      </td>
+      <td>
+        <Tooltip term="thing-group" label="Thing group" /> for deployments
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>CLIENT_THING_NAME</code>
+      </td>
+      <td>
+        Primary ESP32-S3 client Thing (<code>…-esp32-1</code>)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>CLIENT_THING_PREFIX</code>
+      </td>
+      <td>
+        Auth selectionRule prefix (<code>…-esp32</code>) — matches numbered clients
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>CLIENT_THING_NAME_2</code> / <code>_3</code>
+      </td>
+      <td>
+        Optional zone clients (<code>…-esp32-2</code>, <code>…-esp32-3</code>)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>CORE_CERTS_DIR</code> / <code>CLIENT_CERTS_DIR</code>
+      </td>
+      <td>
+        <Tooltip term="x509" label="X.509" /> output paths
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>CLIENT_CERTS_DIR_2</code> / <code>_3</code>
+      </td>
+      <td>
+        Optional — certs for extra zones (<code>certs/client-2</code>,{" "}
+        <code>client-3</code>)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>ARTIFACT_BUCKET</code>
+      </td>
+      <td>
+        Not set in the file. Pages derive it as{" "}
+        <code>…-gg-artifacts-$AWS_ACCOUNT_ID</code> (and{" "}
+        <code>…-gg-data-…</code> for telemetry)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>ZONE_TABLE</code> / <code>ALARM_TOPIC</code> /{" "}
+        <code>COMMAND_FUNCTION</code>
+      </td>
+      <td>DynamoDB table, SNS topic, and Lambda names for the Wire into AWS pages</td>
+    </tr>
+    <tr>
+      <td>
+        <code>ALERT_EMAIL</code>
+      </td>
+      <td>Your address for the CloudWatch alarm email (confirm the SNS mail)</td>
+    </tr>
+    <tr>
+      <td>
+        <code>GG_ROOT</code>
+      </td>
+      <td>
+        Nucleus root (<code>/greengrass/v2</code>)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>NUC_USER</code> / <code>NUC_HOST</code>
+      </td>
+      <td>SSH target (fill on Prepare the core)</td>
+    </tr>
+  </tbody>
+</table>
+
+<Aside type="note">
+No provision/deploy wrappers — each page shows raw <code>aws</code> with these
+names.
+</Aside>
+
+## Cost warning
+
+Things and certs are cheap, and a running Nucleus with{" "}
+<Tooltip term="moquette" label="Moquette" /> mostly costs electricity. The AWS
+integration pages add usage-billed services: IoT Core messages and rule
+actions (two zones at 10 s send about 17,000 telemetry messages a day, each
+matched by three rules), S3 requests and storage, DynamoDB on-demand writes, a CloudWatch
+custom metric and alarm per zone, CloudWatch Logs ingestion, and a few minutes
+of a SageMaker <code>ml.m5.large</code> training job. Check current prices on
+the [AWS Pricing Calculator](https://calculator.aws/) for your Region.
+[Teardown](/teardown/) removes every resource when you finish.
+
+## Next
+
+[Concepts](/concepts/).

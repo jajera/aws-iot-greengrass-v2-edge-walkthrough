@@ -1,0 +1,46 @@
+menu "GG Edge Client"
+
+config ESP_WIFI_SSID
+    string "WiFi SSID"
+    default "myssid"
+
+config ESP_WIFI_PASSWORD
+    string "WiFi password"
+    default "mypassword"
+
+config GG_IOT_ENDPOINT
+    string "AWS IoT data ATS endpoint host"
+    default "example-ats.iot.ap-southeast-2.amazonaws.com"
+
+config GG_THING_NAME
+    string "Client Thing name"
+    default "gg-edge-wt-dev-esp32-1"
+
+config GG_REGION
+    string "AWS Region"
+    default "ap-southeast-2"
+
+config GG_BUTTON_GPIO
+    int "Button GPIO (active low)"
+    default 0
+    help
+        ESP32-S3-DevKitC-1 BOOT button is GPIO 0.
+
+config GG_RGB_GPIO
+    int "Onboard RGB LED data GPIO"
+    default 48
+    help
+        Addressable WS2812 on DevKitC-1: GPIO 48 (v1.0) or GPIO 38 (v1.1).
+        Actuator on → green; off → clear. No external LED required.
+        Default 48 — many shelf boards are v1.0; set 38 if boot blink is dark.
+
+config GG_TELEMETRY_INTERVAL_S
+    int "Telemetry interval (seconds)"
+    default 10
+    range 5 300
+    help
+        Period for gg-edge/telemetry/<thing> (ESP32-S3 on-chip temperature,
+        Wi-Fi RSSI, uptime, RGB state). Feeds S3, DynamoDB, CloudWatch, and
+        the edge anomaly model. Each message is one IoT rule trigger per rule.
+
+endmenu

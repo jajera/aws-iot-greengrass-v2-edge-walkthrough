@@ -1,0 +1,37 @@
+{
+  "targetArn": "TARGET_THING_GROUP_ARN",
+  "deploymentName": "gg-edge-client-device-support",
+  "components": {
+    "aws.greengrass.Nucleus": {
+      "componentVersion": "2.18.3"
+    },
+    "aws.greengrass.clientdevices.Auth": {
+      "componentVersion": "2.5.7",
+      "configurationUpdate": {
+        "merge": "{\"deviceGroups\":{\"formatVersion\":\"2021-03-05\",\"definitions\":{\"MyDeviceGroup\":{\"selectionRule\":\"thingName: CLIENT_THING_PREFIX*\",\"policyName\":\"MyDeviceGroupPolicy\"}},\"policies\":{\"MyDeviceGroupPolicy\":{\"AllowConnect\":{\"statementDescription\":\"Allow client devices to connect\",\"operations\":[\"mqtt:connect\"],\"resources\":[\"*\"]},\"AllowPubSub\":{\"statementDescription\":\"Allow sensor and actuator topics\",\"operations\":[\"mqtt:publish\",\"mqtt:subscribe\"],\"resources\":[\"*\"]}}}}}"
+      }
+    },
+    "aws.greengrass.clientdevices.mqtt.Moquette": {
+      "componentVersion": "2.3.7"
+    },
+    "aws.greengrass.clientdevices.mqtt.Bridge": {
+      "componentVersion": "2.3.4",
+      "configurationUpdate": {
+        "merge": "{\"mqttTopicMapping\":{\"SensorLocalToPubsub\":{\"topic\":\"gg-edge/sensor\",\"source\":\"LocalMqtt\",\"target\":\"Pubsub\"},\"ActuatorPubsubToLocal\":{\"topic\":\"gg-edge/actuator/+\",\"source\":\"Pubsub\",\"target\":\"LocalMqtt\"},\"SensorLocalToIotCore\":{\"topic\":\"gg-edge/sensor\",\"source\":\"LocalMqtt\",\"target\":\"IotCore\"},\"ActuatorLocalToIotCore\":{\"topic\":\"gg-edge/actuator/+\",\"source\":\"LocalMqtt\",\"target\":\"IotCore\"}}}"
+      }
+    },
+    "aws.greengrass.clientdevices.IPDetector": {
+      "componentVersion": "2.2.5"
+    }
+  },
+  "deploymentPolicies": {
+    "failureHandlingPolicy": "ROLLBACK",
+    "componentUpdatePolicy": {
+      "timeoutInSeconds": 60,
+      "action": "NOTIFY_COMPONENTS"
+    },
+    "configurationValidationPolicy": {
+      "timeoutInSeconds": 60
+    }
+  }
+}

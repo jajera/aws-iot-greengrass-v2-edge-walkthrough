@@ -1,0 +1,14 @@
+{
+  "Rules": [
+    {
+      "ID": "expire-telemetry-30d",
+      "Filter": {
+        "Prefix": "telemetry/"
+      },
+      "Status": "Enabled",
+      "Expiration": {
+        "Days": 30
+      }
+    }
+  ]
+}

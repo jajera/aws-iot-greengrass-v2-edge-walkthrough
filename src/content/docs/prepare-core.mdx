@@ -1,0 +1,140 @@
+---
+title: Prepare the core
+description: Install Ubuntu Server on the NUC, then set this lab’s host names and walkthrough.env.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Checklist from "@/components/Checklist.astro";
+import Tooltip from "@/components/Tooltip.astro";
+import PrepareNucDiagram from "@/components/PrepareNucDiagram.astro";
+import PrepareNucSteps from "@/components/PrepareNucSteps.astro";
+
+<Checklist
+  id="prepare-core"
+  items={[
+    "Ubuntu Server via shared walkthrough",
+    "Hostname / user match this lab",
+    "NUC_USER / NUC_HOST in walkthrough.env",
+    "SSH from workstation succeeds",
+  ]}
+/>
+
+This lab’s core is a <Tooltip term="nuc6cay" label="NUC6CAY" /> (or another x86_64
+host). Ubuntu Server install lives in the shared guide below.
+
+What this page owns vs the shared guide:
+
+<PrepareNucDiagram />
+
+Steps on this page:
+
+<PrepareNucSteps />
+
+## Install Ubuntu Server
+
+Do the whole guide:
+
+**[Ubuntu Server walkthrough](https://ubuntu-server-walkthrough.johna.kiwi/)**
+
+Download → write USB → Subiquity → first boot → prove SSH. Stop when that guide’s
+SSH check works, then return here for lab wiring only.
+
+## Lab overrides at Profile
+
+The shared guide defaults hostname `ubuntu-server`. For this lab, at Subiquity
+**Profile** use:
+
+<table>
+  <thead>
+    <tr>
+      <th>Setting</th>
+      <th>This lab</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Server name</td>
+      <td>
+        <code>nuc-gg-edge</code>
+      </td>
+    </tr>
+    <tr>
+      <td>Username</td>
+      <td>
+        <code>ubuntu</code> (matches <code>NUC_USER</code>)
+      </td>
+    </tr>
+    <tr>
+      <td>OpenSSH</td>
+      <td>On (as in the shared guide)</td>
+    </tr>
+  </tbody>
+</table>
+
+Same LAN as the <Tooltip term="esp32-s3" label="ESP32-S3" /> client(s) later.
+
+### Rename if already installed as `ubuntu-server`
+
+```bash frame="terminal"
+sudo hostnamectl set-hostname nuc-gg-edge
+```
+
+```text
+(no output)
+```
+
+Also update `/etc/hosts` if it still lists `ubuntu-server` (common Subiquity
+`127.0.1.1` line).
+
+## Record `NUC_HOST`
+
+### Read hostname and LAN IP (NUC)
+
+```bash frame="terminal"
+hostnamectl
+ip -br a
+```
+
+```text
+Static hostname: nuc-gg-edge
+…
+Operating System: Ubuntu 24.04.5 LTS
+…
+enp3s0           UP             192.168.1.50/24 …
+```
+
+(Interface name varies — on this NUC6CAYB it was `enp3s0`.)
+
+### Set `walkthrough.env` (workstation)
+
+```bash frame="terminal"
+NUC_USER=ubuntu
+NUC_HOST=192.168.1.50
+```
+
+```text
+(no output)
+```
+
+Use your LAN IPv4 from `ip -br a`, not the sample above.
+
+## Prove SSH (lab env)
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+ssh "${NUC_USER}@${NUC_HOST}" 'uname -a && lsb_release -ds'
+```
+
+```text
+Linux nuc-gg-edge 6.8.0-146-generic #146-Ubuntu … x86_64 …
+Ubuntu 24.04.5 LTS
+```
+
+<Aside type="note">
+You do **not** need AWS CLI on the NUC for a manual-provision install. Keep CLI on
+the workstation; copy only certs and (later) component files onto the NUC.
+</Aside>
+
+## Next
+
+[Install Nucleus](/nucleus/).

@@ -1,0 +1,16 @@
+{
+  "sql": "SELECT topic(3) AS thing, 'actuator' AS kind, state, color, source, reason, timestamp() AS ts FROM 'gg-edge/actuator/+'",
+  "description": "Latest actuator command per zone and who sent it (button, cloud, edge ML)",
+  "awsIotSqlVersion": "2016-03-23",
+  "ruleDisabled": false,
+  "actions": [
+    {
+      "dynamoDBv2": {
+        "putItem": {
+          "tableName": "ZONE_TABLE"
+        },
+        "roleArn": "IOT_RULE_ROLE_ARN"
+      }
+    }
+  ]
+}

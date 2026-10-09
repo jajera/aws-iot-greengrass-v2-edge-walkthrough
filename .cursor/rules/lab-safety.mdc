@@ -1,0 +1,20 @@
+---
+description: Block AWS mutations unless the operator opts in
+alwaysApply: true
+---
+
+# Lab safety
+
+Do **not** run mutating AWS CLI or IaC deploy/destroy while authoring this repo.
+Author commands in docs/scripts; the human runs the lab.
+
+Opt-in (operator only):
+
+```bash
+export GG_EDGE_ALLOW_AWS=1
+```
+
+Read-only `aws` (`describe` / `list` / `get` / `sts get-*`) is fine.
+Never commit certs, private keys, or a live `walkthrough.env`.
+
+Details: `.kiro/steering/lab-safety.md`, hook `.kiro/hooks/guard-aws-mutations.py`.

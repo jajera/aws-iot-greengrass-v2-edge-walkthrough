@@ -1,0 +1,39 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "iot:Connect",
+      "Resource": "arn:aws:iot:*:*:client/${iot:Connection.Thing.ThingName}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iot:Publish",
+      "Resource": [
+        "arn:aws:iot:*:*:topic/gg-edge/sensor",
+        "arn:aws:iot:*:*:topic/$aws/rules/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iot:Subscribe",
+      "Resource": [
+        "arn:aws:iot:*:*:topicfilter/gg-edge/actuator",
+        "arn:aws:iot:*:*:topicfilter/$aws/things/${iot:Connection.Thing.ThingName}/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iot:Receive",
+      "Resource": [
+        "arn:aws:iot:*:*:topic/gg-edge/actuator",
+        "arn:aws:iot:*:*:topic/$aws/things/${iot:Connection.Thing.ThingName}/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "greengrass:Discover",
+      "Resource": "*"
+    }
+  ]
+}

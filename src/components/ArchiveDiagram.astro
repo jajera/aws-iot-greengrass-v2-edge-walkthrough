@@ -1,0 +1,149 @@
+---
+/**
+ * ArchiveDiagram — this page: zone telemetry crosses the bridge into IoT Core;
+ * one rule writes each message under telemetry/ in the data lake.
+ * Icons from https://aws-icons.johna.kiwi/ under AWS Trademark Guidelines.
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  client: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+  core: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  iot: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+  s3: `${ICONS}/service/storage/Arch_Amazon-Simple-Storage-Service_64.svg`,
+};
+---
+
+<figure class="ad not-content" aria-labelledby="ad-caption">
+  <div class="ad-row">
+    <div class="ad-node">
+      <img src={img.client} alt="" width="40" height="40" loading="lazy" />
+      <span class="ad-name">ESP32-S3</span>
+      <span class="ad-sub">telemetry every 10 s</span>
+    </div>
+
+    <span class="ad-hop" data-label="LAN MQTT">→</span>
+
+    <div class="ad-node">
+      <img src={img.core} alt="" width="40" height="40" loading="lazy" />
+      <span class="ad-name">Bridge</span>
+      <span class="ad-sub">TelemetryLocalToIotCore</span>
+    </div>
+
+    <span class="ad-hop" data-label="gg-edge/telemetry/+">→</span>
+
+    <div class="ad-node ad-node--hub">
+      <img src={img.iot} alt="" width="40" height="40" loading="lazy" />
+      <span class="ad-name">IoT Core</span>
+      <span class="ad-sub">rule …_telemetry_s3</span>
+    </div>
+
+    <span class="ad-hop" data-label="PutObject">→</span>
+
+    <div class="ad-node ad-node--dest">
+      <img src={img.s3} alt="" width="40" height="40" loading="lazy" />
+      <span class="ad-name">S3 data lake</span>
+      <span class="ad-sub">telemetry/thing=…/dt=…/</span>
+    </div>
+  </div>
+
+  <figcaption id="ad-caption">
+    One rule, one prefix. Later pages add DynamoDB and CloudWatch consumers on
+    the same topic; <a href="/inference/">Edge inference</a> trains on this lake.
+  </figcaption>
+</figure>
+
+<style>
+  .ad {
+    margin: 1.5rem 0;
+  }
+
+  /* Vertical linear flow — four nodes + three labels never fit the Starlight
+     content column horizontally, so stack top-to-bottom with down-arrows. */
+  .ad-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 1.1rem 0.95rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.9rem;
+    background:
+      radial-gradient(
+        ellipse 90% 55% at 50% -8%,
+        var(--patina-accent-soft, color-mix(in oklab, var(--sl-color-accent) 12%, transparent)),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .ad-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    width: min(100%, 22rem);
+    padding: 0.7rem 0.55rem;
+    text-align: center;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .ad-node--hub {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-hairline));
+  }
+
+  .ad-node--dest {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 35%, var(--sl-color-hairline));
+  }
+
+  .ad-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+  }
+
+  .ad-sub {
+    font-size: 0.65rem;
+    color: var(--sl-color-gray-3);
+    line-height: 1.25;
+  }
+
+  /* "label ↓" sitting between stacked nodes. The element's own text is the
+     inline "→" glyph from the markup — hide it (font-size:0) and draw the
+     label + a down arrow via pseudo-elements. */
+  .ad-hop {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    line-height: 1;
+    font-size: 0;
+  }
+
+  .ad-hop::before {
+    content: attr(data-label);
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    line-height: 1.2;
+  }
+
+  .ad-hop::after {
+    content: "↓";
+    font-size: 1.1rem;
+    color: var(--sl-color-accent);
+  }
+
+  figcaption {
+    margin-top: 0.75rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.45;
+  }
+</style>

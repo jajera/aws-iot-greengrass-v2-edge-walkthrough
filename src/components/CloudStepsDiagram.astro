@@ -1,0 +1,169 @@
+---
+/**
+ * CloudStepsDiagram — the CLI build order on this page (six steps), each with
+ * the AWS resource it creates. Overview before the step-by-step commands;
+ * the end-state relationships are in CloudIdentityDiagram.
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/, used under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+interface Step {
+  n: number;
+  icon: string;
+  title: string;
+  cli: string;
+}
+
+const steps: Step[] = [
+  {
+    n: 1,
+    icon: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+    title: "IoT data endpoint",
+    cli: "describe-endpoint",
+  },
+  {
+    n: 2,
+    icon: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_Generic_48.svg`,
+    title: "Core Thing + cert",
+    cli: "create-thing · create-keys",
+  },
+  {
+    n: 3,
+    icon: `${ICONS}/group/iot/AWS-IoT-Greengrass-Deployment_32.svg`,
+    title: "Thing group",
+    cli: "create-thing-group",
+  },
+  {
+    n: 4,
+    icon: `${ICONS}/resource/security/Res_AWS-Identity-Access-Management_Role_48.svg`,
+    title: "Token exchange role",
+    cli: "create-role · create-role-alias",
+  },
+  {
+    n: 5,
+    icon: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+    title: "Client Thing + cert",
+    cli: "create-thing · create-keys",
+  },
+  {
+    n: 6,
+    icon: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+    title: "Greengrass service role",
+    cli: "associate-service-role-to-account",
+  },
+];
+---
+
+<figure class="cs not-content" aria-labelledby="cs-caption">
+  <ol class="cs-rail">
+    {
+      steps.map((s) => (
+        <li class="cs-step">
+          <span class="cs-num">{s.n}</span>
+          <img src={s.icon} alt="" width="30" height="30" loading="lazy" />
+          <span class="cs-title">{s.title}</span>
+          <code class="cs-cli">{s.cli}</code>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption id="cs-caption">
+    Plain <code>aws iot</code> / <code>aws iam</code> / <code>aws greengrassv2</code>
+    calls, in order. Each resource is created before the installer needs it.
+  </figcaption>
+</figure>
+
+<style>
+  .cs {
+    margin: 1.5rem 0;
+  }
+
+  .cs-rail {
+    margin: 0;
+    padding: 1rem 0.9rem;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.5rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .cs-step {
+    position: relative;
+    flex: 1 1 9rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.75rem 0.6rem 0.7rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .cs-step img {
+    display: block;
+  }
+
+  .cs-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.3rem;
+    block-size: 1.3rem;
+    border-radius: 999px;
+    font-family: var(--sl-font-headings);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sl-color-text-invert);
+    background: var(--sl-color-accent);
+  }
+
+  .cs-title {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .cs-cli {
+    font-size: 0.62rem;
+    color: var(--sl-color-text-accent);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.25rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+
+  figcaption {
+    margin-top: 0.9rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.5;
+  }
+
+  figcaption code {
+    font-size: 0.82em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+</style>

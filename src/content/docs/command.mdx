@@ -1,0 +1,242 @@
+---
+title: Cloud commands
+description: Publish a command in IoT Core so the zone RGB turns blue, then automate it — alarm → SNS → Lambda → core → ESP32.
+---
+
+import Tooltip from "@/components/Tooltip.astro";
+import CommandDiagram from "@/components/CommandDiagram.astro";
+
+<CommandDiagram />
+
+So far data has flowed up; this page sends it **down**. The client device never
+talks to AWS — the core subscribes to the cloud command topic through the{" "}
+<Tooltip term="mqtt-bridge" label="bridge" /> (route `CommandIotCoreToPubsub`),
+applies the command, and acknowledges it on `gg-edge/cloud/ack/<thing>`.
+
+## 1. Session variables
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+export GG_EDGE_ALLOW_AWS=1
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+RULE_PREFIX=$(echo "${PROJECT_NAME}_${ENVIRONMENT}" | tr '-' '_')
+IOT_RULE_ROLE_ARN=$(aws iam get-role --role-name "${PROJECT_NAME}-${ENVIRONMENT}-iot-rules" \
+  --query Role.Arn --output text)
+ZONE_TABLE="${ZONE_TABLE:-${PROJECT_NAME}-${ENVIRONMENT}-zone-state}"
+ALARM_TOPIC="${ALARM_TOPIC:-${PROJECT_NAME}-${ENVIRONMENT}-zone-alarms}"
+COMMAND_FUNCTION="${COMMAND_FUNCTION:-${PROJECT_NAME}-${ENVIRONMENT}-alarm-to-command}"
+ALARM_TOPIC_ARN="arn:aws:sns:${AWS_REGION}:${AWS_ACCOUNT_ID}:${ALARM_TOPIC}"
+IOT_DATA_ENDPOINT=$(aws iot describe-endpoint --endpoint-type iot:Data-ATS \
+  --query endpointAddress --output text)
+echo "$IOT_DATA_ENDPOINT"
+```
+
+```text
+example123abc-ats.iot.ap-southeast-2.amazonaws.com
+```
+
+## 2. Record acknowledgements
+
+Create the ack rule first so the manual test below leaves evidence in
+DynamoDB.
+[`ack-to-dynamodb.json`](https://github.com/jajera/aws-iot-greengrass-v2-edge-walkthrough/blob/main/artifacts/iot-rules/ack-to-dynamodb.json)
+reads the zone from `topic(4)` because the ack topic has four segments.
+
+```bash frame="terminal"
+sed -e "s|ZONE_TABLE|${ZONE_TABLE}|g" -e "s|IOT_RULE_ROLE_ARN|${IOT_RULE_ROLE_ARN}|g" \
+  artifacts/iot-rules/ack-to-dynamodb.json > /tmp/rule-ack-ddb.json
+aws iot create-topic-rule --rule-name "${RULE_PREFIX}_ack_ddb" \
+  --topic-rule-payload file:///tmp/rule-ack-ddb.json
+```
+
+```text
+(no output)
+```
+
+## 3. Manual command
+
+### Turn zone 1 blue from AWS
+
+```bash frame="terminal"
+aws iot-data publish --endpoint-url "https://${IOT_DATA_ENDPOINT}" \
+  --topic "gg-edge/cloud/command/${CLIENT_THING_NAME}" --qos 1 \
+  --cli-binary-format raw-in-base64-out \
+  --payload '{"state":"on","color":"blue","reason":"manual test"}'
+```
+
+```text
+(no output)
+```
+
+The `esp32-1` RGB turns **blue**. `esp32-2` does not change.
+
+### Trace it on the core and the zone
+
+NUC (`/greengrass/v2/logs/com.example.GgEdgeLoop.log`):
+
+```text
+… INFO:GgEdgeLoop:command event on gg-edge/cloud/command/gg-edge-wt-dev-esp32-1: {"state":"on","color":"blue","reason":"manual test"}
+… INFO:GgEdgeLoop:cloud command -> gg-edge/actuator/gg-edge-wt-dev-esp32-1: {'state': 'on', 'color': 'blue', 'source': 'cloud', 'target': 'gg-edge-wt-dev-esp32-1', 'reason': 'manual test'}
+… INFO:GgEdgeLoop:ack -> gg-edge/cloud/ack/gg-edge-wt-dev-esp32-1
+```
+
+ESP32-S3 serial:
+
+```text
+I (88240) gg-edge: actuator msg on gg-edge/actuator/gg-edge-wt-dev-esp32-1: {"state": "on", "color": "blue", "source": "cloud", "target": "gg-edge-wt-dev-esp32-1", "reason": "manual test"}
+```
+
+### Confirm the round trip in DynamoDB
+
+```bash frame="terminal"
+aws dynamodb get-item --table-name "$ZONE_TABLE" \
+  --key "{\"thing\":{\"S\":\"${CLIENT_THING_NAME}\"},\"kind\":{\"S\":\"cloud-ack\"}}" \
+  --query "Item.{state:state.S,color:color.S,reason:reason.S,coreTs:coreTs.N}"
+```
+
+```text
+{
+    "state": "on",
+    "color": "blue",
+    "reason": "manual test",
+    "coreTs": "1791587150300"
+}
+```
+
+### Turn it off
+
+```bash frame="terminal"
+aws iot-data publish --endpoint-url "https://${IOT_DATA_ENDPOINT}" \
+  --topic "gg-edge/cloud/command/${CLIENT_THING_NAME}" --qos 1 \
+  --cli-binary-format raw-in-base64-out --payload '{"state":"off"}'
+```
+
+```text
+(no output)
+```
+
+The last message wins. A **BOOT** press (green) overrides a cloud blue, and
+the next cloud command overrides the button.
+
+## 4. Lambda that answers the alarm
+
+[`handler.py`](https://github.com/jajera/aws-iot-greengrass-v2-edge-walkthrough/blob/main/artifacts/lambda/alarm-to-command/handler.py)
+reads the SNS-wrapped alarm and takes the zone from `Trigger.MetricName`
+(`ChipTempC-<thing>`). It publishes `on` + blue for `ALARM` and `off` for
+`OK`.
+
+### Execution role
+
+```bash frame="terminal"
+LAMBDA_ROLE="${COMMAND_FUNCTION}"
+aws iam create-role --role-name "$LAMBDA_ROLE" \
+  --assume-role-policy-document file://artifacts/policies/lambda-trust.json \
+  --query Role.Arn --output text
+aws iam attach-role-policy --role-name "$LAMBDA_ROLE" \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+sed -e "s|AWS_REGION|${AWS_REGION}|g" -e "s|AWS_ACCOUNT_ID|${AWS_ACCOUNT_ID}|g" \
+  artifacts/policies/lambda-iot-command.json > /tmp/lambda-iot-command.json
+aws iam put-role-policy --role-name "$LAMBDA_ROLE" \
+  --policy-name iot-publish-command --policy-document file:///tmp/lambda-iot-command.json
+```
+
+```text
+arn:aws:iam::123456789012:role/gg-edge-wt-dev-alarm-to-command
+```
+
+The function may only publish on `gg-edge/cloud/command/*`.
+
+### Package and create
+
+```bash frame="terminal"
+(cd artifacts/lambda/alarm-to-command && python3 -m zipfile -c /tmp/alarm-to-command.zip handler.py)
+sleep 10
+aws lambda create-function --function-name "$COMMAND_FUNCTION" \
+  --runtime python3.14 --handler handler.lambda_handler --timeout 10 \
+  --role "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${LAMBDA_ROLE}" \
+  --zip-file fileb:///tmp/alarm-to-command.zip \
+  --environment "Variables={IOT_DATA_ENDPOINT=${IOT_DATA_ENDPOINT}}" \
+  --query "[FunctionName,Runtime,State]" --output text
+aws lambda wait function-active-v2 --function-name "$COMMAND_FUNCTION"
+```
+
+```text
+gg-edge-wt-dev-alarm-to-command	python3.14	Pending
+```
+
+`sleep 10` gives the new role time to propagate. If `create-function` still
+says the role cannot be assumed, run it again.
+
+### Let SNS invoke it and subscribe
+
+```bash frame="terminal"
+COMMAND_FUNCTION_ARN=$(aws lambda get-function --function-name "$COMMAND_FUNCTION" \
+  --query Configuration.FunctionArn --output text)
+aws lambda add-permission --function-name "$COMMAND_FUNCTION" \
+  --statement-id sns-zone-alarms --action lambda:InvokeFunction \
+  --principal sns.amazonaws.com --source-arn "$ALARM_TOPIC_ARN" \
+  --query Statement --output text >/dev/null
+aws sns subscribe --topic-arn "$ALARM_TOPIC_ARN" \
+  --protocol lambda --notification-endpoint "$COMMAND_FUNCTION_ARN"
+```
+
+```text
+{
+    "SubscriptionArn": "arn:aws:sns:ap-southeast-2:123456789012:gg-edge-wt-dev-zone-alarms:…"
+}
+```
+
+## 5. Alarm drives the zone
+
+### Forced transition
+
+```bash frame="terminal"
+aws cloudwatch set-alarm-state \
+  --alarm-name "${PROJECT_NAME}-${ENVIRONMENT}-hot-${CLIENT_THING_NAME}" \
+  --state-value ALARM --state-reason "cloud-to-edge test"
+```
+
+```text
+(no output)
+```
+
+Within seconds the `esp32-1` RGB turns **blue** and the ALARM email arrives.
+At the next evaluation the alarm returns to `OK`. The Lambda then sends
+`off` and the RGB goes dark.
+
+### Lambda log
+
+```bash frame="terminal"
+aws logs tail "/aws/lambda/${COMMAND_FUNCTION}" --since 5m
+```
+
+```text
+… published gg-edge/cloud/command/gg-edge-wt-dev-esp32-1: {"state": "on", "color": "blue", "reason": "gg-edge-wt-dev-hot-gg-edge-wt-dev-esp32-1 ALARM"}
+… published gg-edge/cloud/command/gg-edge-wt-dev-esp32-1: {"state": "off", "color": "blue", "reason": "gg-edge-wt-dev-hot-gg-edge-wt-dev-esp32-1 OK"}
+```
+
+### Audit in DynamoDB
+
+```bash frame="terminal"
+aws dynamodb get-item --table-name "$ZONE_TABLE" \
+  --key "{\"thing\":{\"S\":\"${CLIENT_THING_NAME}\"},\"kind\":{\"S\":\"actuator\"}}" \
+  --query "Item.{state:state.S,color:color.S,source:source.S,reason:reason.S}"
+```
+
+```text
+{
+    "state": "off",
+    "color": "blue",
+    "source": "cloud",
+    "reason": "gg-edge-wt-dev-hot-gg-edge-wt-dev-esp32-1 OK"
+}
+```
+
+Right after ALARM (before OK) the same item shows `state: on` and
+`reason: … ALARM`. Hold heat on the module for a real trip — 1–3 minutes to
+blue, stays blue until the reading drops under threshold.
+
+If the NUC loses connectivity, the cloud command never arrives while the button
+loop keeps working. The next page moves the decision onto the core.
+
+Next: [Edge inference](/inference/).
