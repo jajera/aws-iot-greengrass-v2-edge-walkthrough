@@ -1,0 +1,134 @@
+---
+title: Local MQTT stack
+description: Deploy Moquette, client-device auth, IP detector, and the MQTT bridge to the core’s Thing group.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import BridgeMappingDiagram from "@/components/BridgeMappingDiagram.astro";
+import DeploySteps from "@/components/DeploySteps.astro";
+
+This deployment follows the AWS pattern for
+[connecting client devices](https://docs.aws.amazon.com/greengrass/v2/developerguide/connect-client-devices.html):{" "}
+<Tooltip term="client-auth" label="Client device auth" />,{" "}
+<Tooltip term="moquette" label="Moquette" />,{" "}
+<Tooltip term="mqtt-bridge" label="MQTT bridge" />, and{" "}
+<Tooltip term="ip-detector" label="IP detector" />.
+
+Steps on this page:
+
+<DeploySteps />
+
+## 1. Prepare the deployment document
+
+### Render the deployment JSON
+
+Substitute the Thing group ARN and client Auth prefix into the repo template:
+
+```bash frame="terminal"
+CORE_THING_GROUP_ARN=$(aws iot describe-thing-group \
+  --thing-group-name "$CORE_THING_GROUP" \
+  --query thingGroupArn --output text)
+echo "$CORE_THING_GROUP_ARN"
+sed -e "s|TARGET_THING_GROUP_ARN|${CORE_THING_GROUP_ARN}|g" \
+    -e "s|CLIENT_THING_PREFIX|${CLIENT_THING_PREFIX}|g" \
+    artifacts/deployments/client-device-support.json \
+  > /tmp/client-device-support.json
+```
+
+```text
+arn:aws:iot:ap-southeast-2:123456789012:thinggroup/gg-edge-wt-dev-cores
+```
+
+### Optional — list public component versions
+
+Pin newer versions in `/tmp/client-device-support.json` if you choose:
+
+```bash frame="terminal"
+aws greengrassv2 list-components --scope PUBLIC \
+  --query "components[?contains(componentName, 'clientdevices') || componentName=='aws.greengrass.Nucleus'].[componentName,latestVersion.componentVersion]" \
+  --output table
+```
+
+```text
+----------------------------------------------------------
+|                     ListComponents                     |
++----------------------------------------------+---------+
+|  aws.greengrass.Nucleus                      |  2.18.3 |
+|  aws.greengrass.clientdevices.Auth           |  2.5.7  |
+|  aws.greengrass.clientdevices.mqtt.Moquette  |  2.3.7  |
+|  aws.greengrass.clientdevices.mqtt.Bridge    |  2.3.4  |
+|  aws.greengrass.clientdevices.IPDetector     |  2.2.5  |
++----------------------------------------------+---------+
+```
+
+Repo pins in `artifacts/deployments/client-device-support.json` match this evidence
+pass (Nucleus **2.18.3** — same as the installed core).
+
+Auth `selectionRule` is `thingName: <CLIENT_THING_PREFIX>*` so numbered clients
+(`…-esp32-1`, `…-esp32-2`, `…-esp32-3`, …) match. One board is enough for this
+deployment to succeed.
+
+The MQTT bridge maps the two closed-loop topics across{" "}
+<Tooltip term="pubsub" label="Pubsub" />, LocalMqtt, and{" "}
+<Tooltip term="iot-core" label="IoT Core" />:
+
+<BridgeMappingDiagram />
+
+## 2. Create the deployment
+
+```bash frame="terminal"
+aws greengrassv2 create-deployment \
+  --cli-input-json file:///tmp/client-device-support.json
+```
+
+```text
+{
+    "deploymentId": "01234567-89ab-cdef-0123-456789abcdef"
+}
+```
+
+## 3. Wait and verify
+
+### Check effective deployments
+
+```bash frame="terminal"
+aws greengrassv2 list-effective-deployments \
+  --core-device-thing-name "$CORE_THING_NAME" \
+  --output table
+```
+
+```text
+… coreDeviceExecutionStatus | SUCCEEDED …
+… deploymentName            | gg-edge-client-device-support …
+```
+
+(`coreDeviceExecutionStatus` is **SUCCEEDED**, not `COMPLETED`.)
+
+### List installed components (workstation)
+
+Manual Nucleus install does not include{" "}
+<Tooltip term="greengrass-cli" label="greengrass-cli" /> until you deploy it.
+Use the cloud API:
+
+```bash frame="terminal"
+aws greengrassv2 list-installed-components \
+  --core-device-thing-name "$CORE_THING_NAME" \
+  --output table
+```
+
+```text
+… Auth 2.5.7 RUNNING …
+… IPDetector 2.2.5 RUNNING …
+… Bridge 2.3.4 RUNNING …
+… Moquette 2.3.7 RUNNING …
+```
+
+<Aside type="note">
+IP detector publishes the NUC LAN address for{" "}
+<Tooltip term="discovery" label="discovery" />. The{" "}
+<Tooltip term="esp32-s3" label="ESP32-S3" /> and NUC must share a routable local
+network (same Wi‑Fi/LAN).
+</Aside>
+
+Next: [Associate zones](/associate/).

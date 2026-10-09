@@ -1,0 +1,185 @@
+---
+title: Archive telemetry
+description: An IoT rule archives every zone reading into S3 — the training set for edge inference later.
+---
+
+import Tooltip from "@/components/Tooltip.astro";
+import ArchiveDiagram from "@/components/ArchiveDiagram.astro";
+
+<ArchiveDiagram />
+
+Each <Tooltip term="esp32-s3" label="ESP32-S3" /> publishes
+`gg-edge/telemetry/<thing>` every 10 s:
+
+```json
+{"thing":"gg-edge-wt-dev-esp32-1","tempC":29.90,"rssi":-28,"uptimeS":6653,"rgb":"off"}
+```
+
+`tempC` comes from the chip’s on-die temperature sensor. It is a real sensor,
+but it reads coarsely and runs a few degrees above room temperature. The{" "}
+<Tooltip term="mqtt-bridge" label="bridge" /> forwards it to{" "}
+<Tooltip term="iot-core" label="IoT Core" />. An{" "}
+<Tooltip term="iot-rule" label="IoT rule" /> then writes each message to S3 as
+`telemetry/thing=<thing>/dt=<yyyy-MM-dd>/<epoch-ms>.json`. The `dt=` partition
+is **UTC** from the rule’s `timestamp()`.
+
+## 1. Session variables
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+export GG_EDGE_ALLOW_AWS=1
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+DATA_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-gg-data-${AWS_ACCOUNT_ID}"
+RULE_PREFIX=$(echo "${PROJECT_NAME}_${ENVIRONMENT}" | tr '-' '_')
+IOT_RULE_ROLE="${PROJECT_NAME}-${ENVIRONMENT}-iot-rules"
+echo "$DATA_BUCKET $RULE_PREFIX $IOT_RULE_ROLE"
+```
+
+```text
+gg-edge-wt-dev-gg-data-123456789012 gg_edge_wt_dev gg-edge-wt-dev-iot-rules
+```
+
+Rule names allow only letters, digits, and `_`
+([`create-topic-rule`](https://docs.aws.amazon.com/cli/latest/reference/iot/create-topic-rule.html)),
+which is why the prefix swaps `-` for `_`.
+
+## 2. Data bucket
+
+### Create it
+
+```bash frame="terminal"
+aws s3 mb "s3://${DATA_BUCKET}" --region "$AWS_REGION"
+```
+
+```text
+make_bucket: gg-edge-wt-dev-gg-data-123456789012
+```
+
+If the bucket already exists in this account, `s3 mb` errors with
+`BucketAlreadyOwnedByYou` — that is fine; continue.
+
+### Expire raw telemetry after 30 days
+
+Two zones at 10 s intervals write about 17,000 small objects a day.
+[`data-lifecycle.json`](https://github.com/jajera/aws-iot-greengrass-v2-edge-walkthrough/blob/main/artifacts/s3/data-lifecycle.json)
+caps how long they live:
+
+```bash frame="terminal"
+aws s3api put-bucket-lifecycle-configuration --bucket "$DATA_BUCKET" \
+  --lifecycle-configuration file://artifacts/s3/data-lifecycle.json
+```
+
+```text
+{
+    "TransitionDefaultMinimumObjectSize": "all_storage_classes_128K"
+}
+```
+
+## 3. Role that IoT rules assume
+
+One role serves every rule in this walkthrough. Each page adds only the inline
+policy its rule needs.
+
+### Create the role
+
+```bash frame="terminal"
+sed "s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" \
+  artifacts/policies/iot-rule-trust.json > /tmp/iot-rule-trust.json
+aws iam create-role --role-name "$IOT_RULE_ROLE" \
+  --assume-role-policy-document file:///tmp/iot-rule-trust.json \
+  --query Role.Arn --output text
+```
+
+```text
+arn:aws:iam::123456789012:role/gg-edge-wt-dev-iot-rules
+```
+
+### Allow `s3:PutObject` under `telemetry/`
+
+```bash frame="terminal"
+sed "s|DATA_BUCKET|${DATA_BUCKET}|g" artifacts/policies/iot-rule-s3.json \
+  > /tmp/iot-rule-s3.json
+aws iam put-role-policy --role-name "$IOT_RULE_ROLE" \
+  --policy-name iot-rule-s3 --policy-document file:///tmp/iot-rule-s3.json
+```
+
+```text
+(no output)
+```
+
+## 4. Create the rule
+
+[`telemetry-to-s3.json`](https://github.com/jajera/aws-iot-greengrass-v2-edge-walkthrough/blob/main/artifacts/iot-rules/telemetry-to-s3.json):
+`SELECT *, timestamp() AS ts FROM 'gg-edge/telemetry/+'` → S3 action. The key
+uses substitution templates `${topic(3)}`, `${parse_time(...)}`, and
+`${timestamp()}`
+([S3 action](https://docs.aws.amazon.com/iot/latest/developerguide/s3-rule-action.html),
+[substitution templates](https://docs.aws.amazon.com/iot/latest/developerguide/iot-substitution-templates.html)).
+
+```bash frame="terminal"
+IOT_RULE_ROLE_ARN=$(aws iam get-role --role-name "$IOT_RULE_ROLE" --query Role.Arn --output text)
+sed -e "s|DATA_BUCKET|${DATA_BUCKET}|g" -e "s|IOT_RULE_ROLE_ARN|${IOT_RULE_ROLE_ARN}|g" \
+  artifacts/iot-rules/telemetry-to-s3.json > /tmp/rule-telemetry-s3.json
+aws iot create-topic-rule --rule-name "${RULE_PREFIX}_telemetry_s3" \
+  --topic-rule-payload file:///tmp/rule-telemetry-s3.json
+```
+
+```text
+(no output)
+```
+
+If `create-topic-rule` fails with unable to assume role, wait a few seconds and
+retry — a fresh IAM role is not always assumable immediately.
+
+## 5. Prove the lake fills
+
+### List the newest objects
+
+```bash frame="terminal"
+sleep 60
+aws s3 ls "s3://${DATA_BUCKET}/telemetry/" --recursive | tail -4
+```
+
+```text
+2026-10-10 11:36:11        104 telemetry/thing=gg-edge-wt-dev-esp32-2/dt=2026-10-09/1791585370194.json
+2026-10-10 11:36:21        104 telemetry/thing=gg-edge-wt-dev-esp32-2/dt=2026-10-09/1791585380194.json
+2026-10-10 11:36:31        104 telemetry/thing=gg-edge-wt-dev-esp32-2/dt=2026-10-09/1791585390195.json
+2026-10-10 11:36:41        104 telemetry/thing=gg-edge-wt-dev-esp32-2/dt=2026-10-09/1791585400196.json
+```
+
+`dt=` is UTC from the rule’s `timestamp()`.
+
+### Read one back
+
+```bash frame="terminal"
+KEY=$(aws s3 ls "s3://${DATA_BUCKET}/telemetry/thing=${CLIENT_THING_NAME}/" --recursive \
+  | tail -1 | awk '{print $4}')
+aws s3 cp "s3://${DATA_BUCKET}/${KEY}" -
+```
+
+```text
+{"thing":"gg-edge-wt-dev-esp32-1","tempC":29.9,"rssi":-28,"uptimeS":6653,"rgb":"off","ts":1791585400137}
+```
+
+`ts` is the rule’s `timestamp()`, the time IoT Core processed the message.
+
+### Count per zone
+
+```bash frame="terminal"
+for t in "$CLIENT_THING_NAME" "${CLIENT_THING_NAME_2:-}"; do
+  [ -n "$t" ] && echo "$t $(aws s3 ls "s3://${DATA_BUCKET}/telemetry/thing=${t}/" --recursive | wc -l)"
+done
+```
+
+```text
+gg-edge-wt-dev-esp32-1 8
+gg-edge-wt-dev-esp32-2 8
+```
+
+Counts climb about one object per zone every 10 s while the boards are up.
+
+Leave this running. [Edge inference](/inference/) trains on this prefix and needs
+at least 120 readings per zone taken after the first 5 minutes of uptime, which
+is about 25 minutes at 10 s intervals.
+
+Next: [Zone state](/zone-state/).

@@ -1,0 +1,340 @@
+---
+title: Deploy from the cloud
+description: Register GgEdgeLoop from S3, hand the core over from a local deploy to a Thing-group deployment, and turn on LogManager.
+---
+
+import Tooltip from "@/components/Tooltip.astro";
+import DeployCloudDiagram from "@/components/DeployCloudDiagram.astro";
+
+<DeployCloudDiagram />
+
+## Setup
+
+### 1. Session variables
+
+Every cloud page starts with the same block. Bucket names carry the account ID
+so they are globally unique.
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+export GG_EDGE_ALLOW_AWS=1
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ARTIFACT_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-gg-artifacts-${AWS_ACCOUNT_ID}"
+CORE_THING_GROUP_ARN=$(aws iot describe-thing-group \
+  --thing-group-name "$CORE_THING_GROUP" --query thingGroupArn --output text)
+echo "$ARTIFACT_BUCKET"
+```
+
+```text
+gg-edge-wt-dev-gg-artifacts-123456789012
+```
+
+### 2. Artifact bucket and core read access
+
+#### Create the bucket
+
+```bash frame="terminal"
+aws s3 mb "s3://${ARTIFACT_BUCKET}" --region "$AWS_REGION"
+```
+
+```text
+make_bucket: gg-edge-wt-dev-gg-artifacts-123456789012
+```
+
+If the bucket already exists in this account, `s3 mb` errors with
+`BucketAlreadyOwnedByYou` — that is fine; continue.
+
+#### Let the core download artifacts
+
+The core downloads artifacts with its{" "}
+<Tooltip term="token-exchange" label="token exchange" /> role. Scope
+`s3:GetObject` to this bucket:
+
+```bash frame="terminal"
+sed "s|ARTIFACT_BUCKET|${ARTIFACT_BUCKET}|g" \
+  artifacts/policies/token-exchange-artifacts-s3.json > /tmp/tes-artifacts-s3.json
+aws iam put-role-policy \
+  --role-name "${PROJECT_NAME}-${ENVIRONMENT}-token-exchange" \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-gg-artifacts-s3" \
+  --policy-document file:///tmp/tes-artifacts-s3.json
+```
+
+```text
+(no output)
+```
+
+## Register the component
+
+### 3. Register GgEdgeLoop 1.1.0 from S3
+
+`1.1.0` keeps the button loop and adds the cloud path. It subscribes to
+`gg-edge/cloud/command/+`, drives that zone’s RGB blue, and acknowledges on
+`gg-edge/cloud/ack/<thing>`
+([`loop.py`](https://github.com/jajera/aws-iot-greengrass-v2-edge-walkthrough/blob/main/artifacts/components/artifacts/com.example.GgEdgeLoop/1.1.0/loop.py)).
+
+#### Upload the artifact
+
+```bash frame="terminal"
+aws s3 cp artifacts/components/artifacts/com.example.GgEdgeLoop/1.1.0/loop.py \
+  "s3://${ARTIFACT_BUCKET}/artifacts/com.example.GgEdgeLoop/1.1.0/loop.py"
+```
+
+```text
+upload: artifacts/components/artifacts/com.example.GgEdgeLoop/1.1.0/loop.py to s3://gg-edge-wt-dev-gg-artifacts-123456789012/artifacts/com.example.GgEdgeLoop/1.1.0/loop.py
+```
+
+#### Create the component version
+
+```bash frame="terminal"
+sed "s|ARTIFACT_BUCKET|${ARTIFACT_BUCKET}|g" \
+  artifacts/components/recipes/com.example.GgEdgeLoop-1.1.0.yaml \
+  > /tmp/GgEdgeLoop-1.1.0.yaml
+aws greengrassv2 create-component-version \
+  --inline-recipe fileb:///tmp/GgEdgeLoop-1.1.0.yaml
+```
+
+```text
+{
+    "arn": "arn:aws:greengrass:ap-southeast-2:123456789012:components:com.example.GgEdgeLoop:versions:1.1.0",
+    "componentName": "com.example.GgEdgeLoop",
+    "componentVersion": "1.1.0",
+    "creationTimestamp": "2026-10-10T10:32:41.351000+13:00",
+    "status": {
+        "componentState": "REQUESTED",
+        "message": "NONE",
+        "errors": {},
+        "vendorGuidance": "ACTIVE",
+        "vendorGuidanceMessage": "NONE"
+    }
+}
+```
+
+If you already registered `1.1.0`, this fails with a conflict — skip to the
+describe check below.
+
+#### Wait until it is deployable
+
+```bash frame="terminal"
+aws greengrassv2 describe-component \
+  --arn "arn:aws:greengrass:${AWS_REGION}:${AWS_ACCOUNT_ID}:components:com.example.GgEdgeLoop:versions:1.1.0" \
+  --query status.componentState --output text
+```
+
+```text
+DEPLOYABLE
+```
+
+On this lab’s account the state flipped from `REQUESTED` to `DEPLOYABLE`
+within a few seconds.
+
+## Hand over to the cloud
+
+### 4. Remove the local deployment
+
+The local deployment from [Loop component](/loop/) still owns
+`com.example.GgEdgeLoop`. Remove it on the **NUC**, or the cloud version
+conflicts with it:
+
+```bash frame="terminal"
+sudo /greengrass/v2/bin/greengrass-cli deployment create \
+  --remove "com.example.GgEdgeLoop"
+```
+
+```text
+Local deployment submitted! Deployment Id: 11ec62e3-27bf-43cc-8790-1f99baa80a4b
+```
+
+Confirm it is gone before the cloud deployment lands:
+
+```bash frame="terminal"
+sudo /greengrass/v2/bin/greengrass-cli component list | grep GgEdgeLoop || echo "GgEdgeLoop gone"
+```
+
+```text
+GgEdgeLoop gone
+```
+
+### 5. Deploy the greenhouse stack
+
+[`greenhouse-cloud.json`](https://github.com/jajera/aws-iot-greengrass-v2-edge-walkthrough/blob/main/artifacts/deployments/greenhouse-cloud.json)
+is the complete root set for the Thing group. It includes the client-device
+stack, Cli, LogManager, and `GgEdgeLoop 1.1.0`. A Thing-group deployment
+replaces the previous root set, so nothing may be missing.
+
+The Bridge `configurationUpdate` **resets** `/mqttTopicMapping` then merges the
+routes below. Without that reset, earlier mappings (for example
+`ActuatorLocalToIotCore` from the LAN deploy) linger next to the new ones.
+
+<table>
+  <thead>
+    <tr>
+      <th>Bridge route</th>
+      <th>From → to</th>
+      <th>Consumer</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>gg-edge/sensor</code></td>
+      <td>LocalMqtt → Pubsub, IotCore</td>
+      <td>GgEdgeLoop (button)</td>
+    </tr>
+    <tr>
+      <td><code>gg-edge/telemetry/+</code></td>
+      <td>LocalMqtt → Pubsub, IotCore</td>
+      <td>ZoneAnomaly; IoT rules (S3, DynamoDB, CloudWatch)</td>
+    </tr>
+    <tr>
+      <td><code>gg-edge/actuator/+</code></td>
+      <td>Pubsub → LocalMqtt, IotCore</td>
+      <td>ESP32-S3 RGB; DynamoDB rule</td>
+    </tr>
+    <tr>
+      <td><code>gg-edge/cloud/command/+</code></td>
+      <td>IotCore → Pubsub</td>
+      <td>GgEdgeLoop (cloud override)</td>
+    </tr>
+    <tr>
+      <td><code>gg-edge/cloud/ack/+</code></td>
+      <td>Pubsub → IotCore</td>
+      <td>DynamoDB rule</td>
+    </tr>
+    <tr>
+      <td><code>gg-edge/inference/+</code></td>
+      <td>Pubsub → IotCore</td>
+      <td>DynamoDB rule</td>
+    </tr>
+  </tbody>
+</table>
+
+#### Render and create the deployment
+
+```bash frame="terminal"
+CLI_VER=$(aws greengrassv2 list-components --scope PUBLIC \
+  --query "components[?componentName=='aws.greengrass.Cli'].latestVersion.componentVersion" \
+  --output text)
+LM_VER=$(aws greengrassv2 list-components --scope PUBLIC \
+  --query "components[?componentName=='aws.greengrass.LogManager'].latestVersion.componentVersion" \
+  --output text)
+echo "Cli=$CLI_VER LogManager=$LM_VER"
+sed -e "s|TARGET_THING_GROUP_ARN|${CORE_THING_GROUP_ARN}|g" \
+    -e "s|CLIENT_THING_PREFIX|${CLIENT_THING_PREFIX}|g" \
+    -e "s|CLI_COMPONENT_VERSION|${CLI_VER}|g" \
+    -e "s|LOGMANAGER_COMPONENT_VERSION|${LM_VER}|g" \
+    artifacts/deployments/greenhouse-cloud.json > /tmp/greenhouse-cloud.json
+aws greengrassv2 create-deployment --cli-input-json file:///tmp/greenhouse-cloud.json
+```
+
+```text
+Cli=2.18.3 LogManager=2.3.14
+{
+    "deploymentId": "50cb5eaf-71e5-438f-a1f1-60995ae5869b",
+    "iotJobId": "7d4be355-9d66-45fa-a52c-c7892fce6197",
+    "iotJobArn": "arn:aws:iot:ap-southeast-2:123456789012:job/7d4be355-9d66-45fa-a52c-c7892fce6197"
+}
+```
+
+If `LogManager` comes back empty, paginate `list-components` or set
+`LM_VER=2.3.14`.
+
+#### Wait for SUCCEEDED
+
+```bash frame="terminal"
+aws greengrassv2 list-effective-deployments \
+  --core-device-thing-name "$CORE_THING_NAME" \
+  --query "effectiveDeployments[?deploymentName=='gg-edge-greenhouse'].[deploymentName,coreDeviceExecutionStatus]" \
+  --output text
+```
+
+```text
+gg-edge-greenhouse	SUCCEEDED
+```
+
+Expect `QUEUED` → `IN_PROGRESS` → `SUCCEEDED` within about a minute on this NUC.
+
+## Verify and observe
+
+### 6. Verify on the NUC
+
+#### Component came from the cloud
+
+```bash frame="terminal"
+sudo /greengrass/v2/bin/greengrass-cli component list | grep -A3 -E "GgEdgeLoop|LogManager"
+```
+
+```text
+Component Name: com.example.GgEdgeLoop
+    Version: 1.1.0
+    State: RUNNING
+    Configuration: {"accessControl":{…}}
+Component Name: aws.greengrass.LogManager
+    Version: 2.3.14
+    State: RUNNING
+    Configuration: {"logsUploaderConfiguration":{…},"periodicUploadIntervalSec":"60"}
+```
+
+Confirm the Bridge has the Act 2 routes (including telemetry) and **no** leftover
+`ActuatorLocalToIotCore`:
+
+```bash frame="terminal"
+sudo /greengrass/v2/bin/greengrass-cli component list | grep -A2 mqtt.Bridge
+```
+
+```text
+Component Name: aws.greengrass.clientdevices.mqtt.Bridge
+    Version: 2.3.4
+    State: RUNNING
+```
+
+The configuration should list `TelemetryLocalToIotCore`,
+`ActuatorPubsubToIotCore`, and `CommandIotCoreToPubsub`.
+
+#### Loop log
+
+```bash frame="terminal"
+sudo tail -n 20 /greengrass/v2/logs/com.example.GgEdgeLoop.log
+```
+
+```text
+2026-10-09T21:33:35.394Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:subscribed to gg-edge/sensor. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+2026-10-09T21:33:35.396Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:subscribed to gg-edge/cloud/command/+. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+2026-10-09T21:33:35.396Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:publishing on gg-edge/actuator/<thing> and gg-edge/cloud/ack/<thing>. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+```
+
+Press **BOOT**: the RGB still goes **green**. The button loop survived the
+handover; only the install source moved from local disk to S3.
+
+### 7. Logs in CloudWatch
+
+LogManager uploads every 60 s (`periodicUploadIntervalSec` in the deployment).
+Log groups follow `/aws/greengrass/<componentType>/<region>/<componentName>`
+([monitor logs](https://docs.aws.amazon.com/greengrass/v2/developerguide/monitor-logs.html)).
+
+After about a minute:
+
+```bash frame="terminal"
+aws logs describe-log-groups --log-group-name-prefix "/aws/greengrass/" \
+  --query "logGroups[].logGroupName" --output text
+```
+
+```text
+/aws/greengrass/GreengrassSystemComponent/ap-southeast-2/System	/aws/greengrass/UserComponent/ap-southeast-2/com.example.GgEdgeLoop
+```
+
+```bash frame="terminal"
+aws logs tail "/aws/greengrass/UserComponent/${AWS_REGION}/com.example.GgEdgeLoop" \
+  --since 15m
+```
+
+```text
+2026-10-09T21:33:35.394000+00:00 /2026/10/09/thing/gg-edge-wt-dev-core 2026-10-09T21:33:35.394Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:subscribed to gg-edge/sensor. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+2026-10-09T21:33:35.396000+00:00 /2026/10/09/thing/gg-edge-wt-dev-core 2026-10-09T21:33:35.396Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:subscribed to gg-edge/cloud/command/+. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+2026-10-09T21:33:35.396000+00:00 /2026/10/09/thing/gg-edge-wt-dev-core 2026-10-09T21:33:35.396Z [INFO] (Copier) com.example.GgEdgeLoop: stdout. INFO:GgEdgeLoop:publishing on gg-edge/actuator/<thing> and gg-edge/cloud/ack/<thing>. {scriptName=services.com.example.GgEdgeLoop.lifecycle.Run, serviceName=com.example.GgEdgeLoop, currentState=RUNNING}
+```
+
+Telemetry now reaches <Tooltip term="iot-core" label="IoT Core" /> every 10 s
+per zone. In the console **MQTT test client**, subscribe to `gg-edge/#` (or
+`gg-edge/telemetry/+`) — you should see chip-temperature messages. The next page
+gives them a durable consumer.
+
+Next: [Archive telemetry](/archive/).

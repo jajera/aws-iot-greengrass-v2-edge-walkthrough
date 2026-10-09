@@ -1,0 +1,16 @@
+{
+  "sql": "SELECT topic(4) AS thing, 'cloud-ack' AS kind, applied.state AS state, applied.color AS color, applied.reason AS reason, ts AS coreTs, timestamp() AS ts FROM 'gg-edge/cloud/ack/+'",
+  "description": "Core acknowledgement of a cloud command (proves the cloud-to-edge round trip)",
+  "awsIotSqlVersion": "2016-03-23",
+  "ruleDisabled": false,
+  "actions": [
+    {
+      "dynamoDBv2": {
+        "putItem": {
+          "tableName": "ZONE_TABLE"
+        },
+        "roleArn": "IOT_RULE_ROLE_ARN"
+      }
+    }
+  ]
+}

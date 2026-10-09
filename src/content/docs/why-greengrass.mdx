@@ -1,0 +1,80 @@
+---
+title: Why Greengrass?
+description: When a Greengrass core hub beats a direct IoT Core connection — and when it does not.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import CompareTopologyDiagram from "@/components/CompareTopologyDiagram.astro";
+
+Each <Tooltip term="esp32-s3" label="ESP32-S3" /> has an IoT certificate. You can
+publish straight to <Tooltip term="iot-core" label="IoT Core" />, or connect to a
+local Greengrass core first. This lab uses the hub.
+
+## Topologies
+
+<CompareTopologyDiagram />
+
+## Tradeoffs
+
+<table>
+  <thead>
+    <tr>
+      <th>Need</th>
+      <th>Direct IoT Core</th>
+      <th>Greengrass hub</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Local decide with cloud down / high RTT</td>
+      <td>Fails or needs on-device logic</td>
+      <td>
+        <Tooltip term="closed-loop" label="Closed loop" /> on the LAN
+      </td>
+    </tr>
+    <tr>
+      <td>Many boards, one place for policy / ML</td>
+      <td>Logic in cloud or on every MCU</td>
+      <td>
+        Components on the <Tooltip term="core-device" label="core" />
+      </td>
+    </tr>
+    <tr>
+      <td>Cloud-managed edge software versions</td>
+      <td>Device OTA only</td>
+      <td>
+        <Tooltip term="component" label="Component" /> deployments + config merge
+      </td>
+    </tr>
+    <tr>
+      <td>Simplest cloud MQTT telemetry</td>
+      <td>Fewer moving parts</td>
+      <td>Extra Nucleus + broker stack</td>
+    </tr>
+    <tr>
+      <td>Hub host dies</td>
+      <td>Boards can still reach cloud (if online)</td>
+      <td>
+        Local path through that core is a{" "}
+        <strong>single point of failure</strong>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Single point of failure
+
+One <Tooltip term="nucleus" label="Nucleus" /> +{" "}
+<Tooltip term="moquette" label="Moquette" /> on one NUC is a SPOF for local MQTT
+and for components that decide there. This walkthrough does not build multi-core
+HA.
+
+## Nucleus lite
+
+AWS also offers Nucleus lite for constrained hosts. This lab uses **classic
+Nucleus** on Ubuntu x86. See the
+[developer guide](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-nucleus-lite.html)
+if you need lite later.
+
+Next: [Identities](/identities/).

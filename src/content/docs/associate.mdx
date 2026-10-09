@@ -1,0 +1,128 @@
+---
+title: Associate zones
+description: Associate each ESP32-S3 client Thing with the core and prove Greengrass discovery.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import AssociateDiagram from "@/components/AssociateDiagram.astro";
+
+<Tooltip term="client-device" label="Client devices" /> can use{" "}
+<Tooltip term="discovery" label="discovery" /> only for cores you associate via
+`BatchAssociateClientDeviceWithCoreDevice`.
+
+<AssociateDiagram />
+
+## 1. Associate
+
+### Associate the client Thing with the core
+
+```bash frame="terminal"
+aws greengrassv2 batch-associate-client-device-with-core-device \
+  --core-device-thing-name "$CORE_THING_NAME" \
+  --entries thingName="$CLIENT_THING_NAME"
+```
+
+```text
+{
+    "associatedClientDevices": [
+        {
+            "thingName": "gg-edge-wt-dev-esp32-1"
+        }
+    ],
+    "errorEntries": []
+}
+```
+
+### List associations
+
+```bash frame="terminal"
+aws greengrassv2 list-client-devices-associated-with-core-device \
+  --core-device-thing-name "$CORE_THING_NAME"
+```
+
+```text
+{
+    "associatedClientDevices": [
+        {
+            "thingName": "gg-edge-wt-dev-esp32-1",
+            "associationTimestamp": "2026-10-04T10:00:00.000000+00:00"
+        }
+    ]
+}
+```
+
+### Optional — associate more zone clients
+
+Only if you created `$CLIENT_THING_NAME_2` (and optionally `_3`) on
+[Identities](/identities/):
+
+```bash frame="terminal"
+aws greengrassv2 batch-associate-client-device-with-core-device \
+  --core-device-thing-name "$CORE_THING_NAME" \
+  --entries thingName="$CLIENT_THING_NAME_2"
+# Third zone:
+# aws greengrassv2 batch-associate-client-device-with-core-device \
+#   --core-device-thing-name "$CORE_THING_NAME" \
+#   --entries thingName="$CLIENT_THING_NAME_3"
+```
+
+```text
+{
+    "associatedClientDevices": [
+        {
+            "thingName": "gg-edge-wt-dev-esp32-2"
+        }
+    ],
+    "errorEntries": []
+}
+```
+
+## 2. Prove discovery with curl
+
+Use the **client** certificate (not the core cert):
+
+```bash frame="terminal"
+GG_DATA_ENDPOINT="greengrass-ats.iot.${AWS_REGION}.amazonaws.com"
+curl --cert "$CLIENT_CERTS_DIR/device.pem.crt" \
+     --key "$CLIENT_CERTS_DIR/private.pem.key" \
+     --cacert "$CLIENT_CERTS_DIR/AmazonRootCA1.pem" \
+     "https://${GG_DATA_ENDPOINT}:8443/greengrass/discover/thing/${CLIENT_THING_NAME}" \
+  | jq .
+```
+
+```text
+{
+  "GGGroups": [
+    {
+      "GGGroupId": "…",
+      "Cores": [
+        {
+          "thingName": "gg-edge-wt-dev-core",
+          "Connectivity": [
+            {
+              "HostAddress": "192.168.1.50",
+              "PortNumber": 8883
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+You should see connectivity info for `$CORE_THING_NAME` (host / port for{" "}
+<Tooltip term="moquette" label="Moquette" />, typically **8883**). If the list is
+empty, wait for <Tooltip term="ip-detector" label="IP detector" /> and re-check
+association.
+
+Extra zones (optional): same `curl`, swap in `$CLIENT_CERTS_DIR_2` /
+`$CLIENT_THING_NAME_2` (and `_3` if used).
+
+<Aside type="tip">
+The discovery API is documented in
+[Greengrass discovery RESTful API](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-discover-api.html).
+</Aside>
+
+Next: [Loop component](/loop/).

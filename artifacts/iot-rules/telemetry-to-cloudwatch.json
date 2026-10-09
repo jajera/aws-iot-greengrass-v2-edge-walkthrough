@@ -1,0 +1,17 @@
+{
+  "sql": "SELECT * FROM 'gg-edge/telemetry/+'",
+  "description": "Chip temperature per zone as a CloudWatch metric (ChipTempC-<thing>)",
+  "awsIotSqlVersion": "2016-03-23",
+  "ruleDisabled": false,
+  "actions": [
+    {
+      "cloudwatchMetric": {
+        "metricNamespace": "GgEdge/Greenhouse",
+        "metricName": "ChipTempC-${topic(3)}",
+        "metricValue": "${tempC}",
+        "metricUnit": "None",
+        "roleArn": "IOT_RULE_ROLE_ARN"
+      }
+    }
+  ]
+}

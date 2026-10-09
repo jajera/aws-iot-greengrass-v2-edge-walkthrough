@@ -1,0 +1,258 @@
+---
+/**
+ * BridgeMappingDiagram — how the MQTT bridge routes the two closed-loop topics
+ * between LocalMqtt (Moquette), Pubsub (components), and IoT Core (cloud mirror).
+ *
+ * Four mappings from the deployment template:
+ *   SensorLocalToPubsub     LocalMqtt → Pubsub    gg-edge/sensor
+ *   ActuatorPubsubToLocal   Pubsub    → LocalMqtt gg-edge/actuator
+ *   SensorLocalToIotCore    LocalMqtt → IotCore   gg-edge/sensor
+ *   ActuatorLocalToIotCore  LocalMqtt → IotCore   gg-edge/actuator
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/, used under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  localMqtt: `${ICONS}/resource/iot/Res_AWS-IoT_MQTT_Protocol_48.svg`,
+  pubsub: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Interprocess-Communication_48.svg`,
+  bridge: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Connector_48.svg`,
+  iotCore: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+};
+---
+
+<figure class="bm not-content" aria-labelledby="bm-caption">
+  <div class="bm-grid">
+    {/* Pubsub (local components) */}
+    <div class="bm-node bm-node--pubsub">
+      <img src={img.pubsub} alt="" width="40" height="40" loading="lazy" />
+      <span class="bm-name">Pubsub</span>
+      <span class="bm-sub">local components</span>
+    </div>
+
+    {/* Pubsub ↔ LocalMqtt flows */}
+    <div class="bm-flows bm-flows--left">
+      <span class="bm-flow">
+        <span class="bm-topic">gg-edge/sensor</span>
+        <span class="bm-arrow">←</span>
+      </span>
+      <span class="bm-flow">
+        <span class="bm-topic">gg-edge/actuator</span>
+        <span class="bm-arrow">→</span>
+      </span>
+    </div>
+
+    {/* LocalMqtt (Moquette) — the hub, with the bridge */}
+    <div class="bm-node bm-node--hub">
+      <img src={img.localMqtt} alt="" width="42" height="42" loading="lazy" />
+      <span class="bm-name">LocalMqtt</span>
+      <span class="bm-sub">Moquette broker</span>
+      <span class="bm-badge">
+        <img src={img.bridge} alt="" width="16" height="16" loading="lazy" />
+        MQTT bridge
+      </span>
+    </div>
+
+    {/* LocalMqtt → IoT Core flows (mirror) */}
+    <div class="bm-flows bm-flows--right">
+      <span class="bm-flow">
+        <span class="bm-topic">gg-edge/sensor</span>
+        <span class="bm-arrow">→</span>
+      </span>
+      <span class="bm-flow">
+        <span class="bm-topic">gg-edge/actuator</span>
+        <span class="bm-arrow">→</span>
+      </span>
+    </div>
+
+    {/* IoT Core (cloud mirror) */}
+    <div class="bm-node bm-node--cloud">
+      <img src={img.iotCore} alt="" width="40" height="40" loading="lazy" />
+      <span class="bm-name">IoT Core</span>
+      <span class="bm-sub">cloud mirror</span>
+    </div>
+  </div>
+
+  <figcaption id="bm-caption">
+    <ul>
+      <li><strong>sensor</strong>: LocalMqtt → Pubsub (to the component).</li>
+      <li><strong>actuator</strong>: Pubsub → LocalMqtt (to the client).</li>
+      <li>Both topics also mirror LocalMqtt → IoT Core (one-way).</li>
+    </ul>
+  </figcaption>
+</figure>
+
+<style>
+  .bm {
+    margin: 1.5rem 0;
+  }
+
+  .bm-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 1.1rem 0.9rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  @media (min-width: 62rem) {
+    .bm-grid {
+      grid-template-columns:
+        minmax(0, 0.85fr) minmax(0, 0.75fr)
+        minmax(0, 1fr) minmax(0, 0.75fr)
+        minmax(0, 0.85fr);
+    }
+  }
+
+  /* ---- Nodes ---- */
+  .bm-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    text-align: center;
+    padding: 0.8rem 0.65rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+    min-width: 0;
+  }
+
+  .bm-node--hub {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, transparent);
+  }
+
+  .bm-node--cloud,
+  .bm-node--pubsub {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 28%, transparent);
+  }
+
+  .bm-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  .bm-sub {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    line-height: 1.3;
+  }
+
+  .bm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.35rem;
+    font-size: 0.66rem;
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.3rem;
+  }
+
+  .bm-badge img {
+    display: block;
+  }
+
+  /* ---- Flows ---- */
+  .bm-flows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .bm-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.05rem;
+  }
+
+  .bm-topic {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--sl-color-text-accent);
+    text-align: center;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .bm-arrow {
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  /* ---- Narrow: stack; arrows read downward with topic beside ---- */
+  @media (max-width: 61.99rem) {
+    .bm-flows {
+      flex-direction: row;
+      justify-content: center;
+      gap: 1.1rem;
+      padding: 0.1rem 0;
+    }
+
+    .bm-flow {
+      flex-direction: row;
+      gap: 0.3rem;
+      align-items: center;
+    }
+
+    /* point the inline arrows downward when stacked */
+    .bm-arrow {
+      transform: rotate(90deg);
+      display: inline-block;
+    }
+  }
+
+  figcaption {
+    margin-top: 0.9rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+
+  figcaption ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  figcaption li {
+    position: relative;
+    padding-left: 1.1rem;
+    line-height: 1.4;
+  }
+
+  figcaption li::before {
+    content: "›";
+    position: absolute;
+    left: 0.2rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+  }
+
+  figcaption strong {
+    color: var(--sl-color-white);
+  }
+</style>

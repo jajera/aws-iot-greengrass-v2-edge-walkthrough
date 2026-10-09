@@ -1,0 +1,292 @@
+---
+title: Install Nucleus
+description: Manually provision Greengrass Nucleus on the prepared Ubuntu Server core.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Checklist from "@/components/Checklist.astro";
+import Tooltip from "@/components/Tooltip.astro";
+import NucleusInstallDiagram from "@/components/NucleusInstallDiagram.astro";
+import NucleusSteps from "@/components/NucleusSteps.astro";
+
+<Checklist
+  id="nucleus"
+  items={[
+    "Prepare the core completed (SSH works)",
+    "Core certs copied to the NUC",
+    "Java / Python packages installed",
+    "Nucleus installed and HEALTHY",
+  ]}
+/>
+
+You install <Tooltip term="nucleus" label="Nucleus" /> with **manual** provisioning
+on the <Tooltip term="nuc6cay" label="NUC" /> — every cloud resource already exists
+from [Identities](/identities/), and the host OS is ready from
+[Prepare the core](/prepare-core/).
+
+Official path:
+[Install with manual resource provisioning](https://docs.aws.amazon.com/greengrass/v2/developerguide/manual-installation.html)
+(`--init-config` + `config.yaml`, not interactive prompts).
+
+What moves where:
+
+<NucleusInstallDiagram />
+
+Steps on this page:
+
+<NucleusSteps />
+
+## 1. Copy core certificates to the NUC
+
+From the **workstation** (repo root, after [Identities](/identities/)):
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+ssh "${NUC_USER}@${NUC_HOST}" 'mkdir -p ~/gg-edge-core-certs'
+scp "$CORE_CERTS_DIR/device.pem.crt" \
+    "$CORE_CERTS_DIR/private.pem.key" \
+    "$CORE_CERTS_DIR/AmazonRootCA1.pem" \
+    "${NUC_USER}@${NUC_HOST}:~/gg-edge-core-certs/"
+```
+
+```text
+device.pem.crt        100%
+private.pem.key      100%
+AmazonRootCA1.pem    100%
+```
+
+## 2. Host packages (on the NUC)
+
+SSH in, then install Java for Nucleus (AWS requires 8+; this lab uses OpenJDK
+**21**) and Ubuntu’s Python **3.12** for closed-loop components (`awsiotsdk`).
+Same default interpreter as the workstation — no deadsnakes PPA.
+
+### SSH to the NUC
+
+```bash frame="terminal"
+ssh "${NUC_USER}@${NUC_HOST}"
+```
+
+```text
+… login on the NUC …
+```
+
+### Install OpenJDK and Python
+
+```bash frame="terminal"
+sudo apt-get update
+sudo apt-get install -y openjdk-21-jdk-headless python3 python3-pip curl unzip
+java -version
+python3 --version
+```
+
+```text
+openjdk version "21.0.12.1" 2026-08-18
+OpenJDK Runtime Environment (build 21.0.12.1+1-1-24.04.4-Ubuntu)
+OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-24.04.4-Ubuntu, mixed mode, sharing)
+Python 3.12.3
+```
+
+### Install AWS IoT Device SDK for Python (IPC)
+
+Loop components import `awsiot.greengrasscoreipc`. Install system-wide so
+`ggc_user` can import it (Ubuntu 24.04 needs `--break-system-packages` for
+PEP 668):
+
+```bash frame="terminal"
+sudo python3 -m pip install --break-system-packages awsiotsdk
+python3 -c "import awsiot.greengrasscoreipc; print('ok')"
+```
+
+```text
+… Successfully installed awsiotsdk-…
+ok
+```
+
+See
+[Linux device setup](https://docs.aws.amazon.com/greengrass/v2/developerguide/manual-installation.html#set-up-linux-device)
+and
+[interprocess communication](https://docs.aws.amazon.com/greengrass/v2/developerguide/interprocess-communication.html)
+in the AWS docs. The installer can create `ggc_user` / `ggc_group` when you pass
+`--component-default-user`.
+
+## 3. Place certificates (on the NUC)
+
+```bash frame="terminal"
+sudo mkdir -p /greengrass/v2/certs
+sudo chmod 755 /greengrass
+sudo cp ~/gg-edge-core-certs/device.pem.crt \
+        ~/gg-edge-core-certs/private.pem.key \
+        ~/gg-edge-core-certs/AmazonRootCA1.pem \
+        /greengrass/v2/certs/
+sudo chmod 644 /greengrass/v2/certs/device.pem.crt /greengrass/v2/certs/AmazonRootCA1.pem
+sudo chmod 600 /greengrass/v2/certs/private.pem.key
+```
+
+```text
+(no output)
+```
+
+## 4. Download the installer (on the NUC)
+
+```bash frame="terminal"
+curl -s https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-nucleus-latest.zip \
+  -o /tmp/greengrass-nucleus-latest.zip
+rm -rf /tmp/GreengrassInstaller
+unzip -o /tmp/greengrass-nucleus-latest.zip -d /tmp/GreengrassInstaller
+java -jar /tmp/GreengrassInstaller/lib/Greengrass.jar --version
+```
+
+```text
+Archive:  /tmp/greengrass-nucleus-latest.zip
+  …
+AWS Greengrass v2.18.3
+```
+
+Record that version — you need it in `config.yaml` next.
+<Tooltip term="client-device" label="Client devices" /> need Nucleus **2.2.0+**;
+this evidence pass used **2.18.3**.
+
+## 5. Endpoints and `config.yaml`
+
+### Look up credentials endpoint
+
+On the **workstation** (has AWS CLI); keep your data endpoint from
+`walkthrough.env`:
+
+```bash frame="terminal"
+aws iot describe-endpoint --endpoint-type iot:CredentialProvider \
+  --query endpointAddress --output text
+```
+
+```text
+example123abc.credentials.iot.ap-southeast-2.amazonaws.com
+```
+
+### Write `config.yaml` on the NUC
+
+Create `/tmp/GreengrassInstaller/config.yaml` (use your real endpoints and thing
+name — placeholders below):
+
+```bash frame="terminal"
+cat >/tmp/GreengrassInstaller/config.yaml <<'EOF'
+---
+system:
+  certificateFilePath: "/greengrass/v2/certs/device.pem.crt"
+  privateKeyPath: "/greengrass/v2/certs/private.pem.key"
+  rootCaPath: "/greengrass/v2/certs/AmazonRootCA1.pem"
+  rootpath: "/greengrass/v2"
+  thingName: "gg-edge-wt-dev-core"
+services:
+  aws.greengrass.Nucleus:
+    componentType: "NUCLEUS"
+    version: "2.18.3"
+    configuration:
+      awsRegion: "ap-southeast-2"
+      iotRoleAlias: "gg-edge-wt-dev-token-alias"
+      iotDataEndpoint: "example123abc-ats.iot.ap-southeast-2.amazonaws.com"
+      iotCredEndpoint: "example123abc.credentials.iot.ap-southeast-2.amazonaws.com"
+EOF
+```
+
+```text
+(no output)
+```
+
+Replace `version` with the `java -jar … --version` value, and both endpoints with
+your account’s values from `walkthrough.env` / the CredentialProvider lookup.
+The role alias is the <Tooltip term="token-exchange" label="token exchange" />
+alias from the cloud page.
+
+## 6. Install with manual provisioning
+
+```bash frame="terminal"
+sudo -E java -Droot="/greengrass/v2" -Dlog.store=FILE \
+  -jar /tmp/GreengrassInstaller/lib/Greengrass.jar \
+  --init-config /tmp/GreengrassInstaller/config.yaml \
+  --component-default-user ggc_user:ggc_group \
+  --setup-system-service true
+```
+
+```text
+Creating user ggc_user
+ggc_user created
+Creating group ggc_group
+ggc_group created
+Added ggc_user to ggc_group
+Successfully set up Nucleus as a system service
+```
+
+<Aside type="note">
+`--deploy-dev-tools` only works with `--provision true`. Manual install does
+**not** ship <Tooltip term="greengrass-cli" label="greengrass-cli" />. Deploy
+`aws.greengrass.Cli` on
+[Loop component](/loop/) when you need local tooling (see also
+[Greengrass CLI](https://docs.aws.amazon.com/greengrass/v2/developerguide/gg-cli.html)).
+</Aside>
+
+## 7. Verify
+
+### Check systemd and effective config (NUC)
+
+```bash frame="terminal"
+sudo systemctl status greengrass.service --no-pager
+sudo grep -E 'thingName|version:' /greengrass/v2/config/effectiveConfig.yaml | head -10
+```
+
+```text
+● greengrass.service - Greengrass Core
+     Active: active (running) …
+…
+  thingName: "gg-edge-wt-dev-core"
+    version: "2.18.3"
+```
+
+### Confirm IoT Core connect in logs (NUC)
+
+```bash frame="terminal"
+sudo grep 'Successfully connected to AWS IoT Core' /greengrass/v2/logs/greengrass.log | tail -1
+```
+
+```text
+… Successfully connected to AWS IoT Core. {clientId=gg-edge-wt-dev-core, …}
+```
+
+### List HEALTHY cores (workstation)
+
+```bash frame="terminal"
+aws greengrassv2 list-core-devices --status HEALTHY
+```
+
+```text
+{
+    "coreDevices": [
+        {
+            "coreDeviceThingName": "gg-edge-wt-dev-core",
+            "status": "HEALTHY",
+            "platform": "linux",
+            "architecture": "amd64",
+            …
+        }
+    ]
+}
+```
+
+### Get this core device (workstation)
+
+```bash frame="terminal"
+aws greengrassv2 get-core-device --core-device-thing-name "$CORE_THING_NAME"
+```
+
+```text
+{
+    "coreDeviceThingName": "gg-edge-wt-dev-core",
+    "coreVersion": "2.18.3",
+    "status": "HEALTHY",
+    "platform": "linux",
+    "architecture": "amd64",
+    …
+}
+```
+
+Next: [Local MQTT stack](/mqtt-stack/).

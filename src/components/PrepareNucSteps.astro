@@ -1,0 +1,158 @@
+---
+/**
+ * PrepareNucSteps — the four things this page does, in order. Overview rail
+ * above the step-by-step sections (matches the cloud page's build-order rail).
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/ (general
+ * set has Light/Dark variants, swapped per theme in the script below), under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const gen = (name: string) => ({
+  dark: `${ICONS}/resource/general/Res_${name}_48_Dark.svg`,
+  light: `${ICONS}/resource/general/Res_${name}_48_Light.svg`,
+});
+
+interface Step {
+  n: number;
+  ico: { dark: string; light: string };
+  title: string;
+  hint: string;
+}
+
+const steps: Step[] = [
+  { n: 1, ico: gen("Disk"), title: "Install Ubuntu Server", hint: "shared walkthrough" },
+  { n: 2, ico: gen("Gear"), title: "Lab overrides", hint: "nuc-gg-edge · ubuntu" },
+  { n: 3, ico: gen("Document"), title: "Record NUC_HOST", hint: "walkthrough.env" },
+  { n: 4, ico: gen("SSL-padlock"), title: "Prove SSH", hint: "ssh from workstation" },
+];
+---
+
+<figure class="ps not-content" aria-labelledby="ps-caption">
+  <ol class="ps-rail">
+    {
+      steps.map((s) => (
+        <li class="ps-step">
+          <span class="ps-num">{s.n}</span>
+          <img
+            class="ps-ico"
+            src={s.ico.dark}
+            data-light={s.ico.light}
+            alt=""
+            width="30"
+            height="30"
+            loading="lazy"
+          />
+          <span class="ps-title">{s.title}</span>
+          <span class="ps-hint">{s.hint}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption id="ps-caption">
+    Step 1 is the shared OS guide; 2–4 are this lab's wiring. The NUC never needs
+    the AWS CLI.
+  </figcaption>
+</figure>
+
+<style>
+  .ps {
+    margin: 1.5rem 0;
+  }
+
+  .ps-rail {
+    margin: 0;
+    padding: 1rem 0.9rem;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .ps-step {
+    flex: 1 1 8rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.75rem 0.6rem 0.7rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .ps-step img {
+    display: block;
+  }
+
+  .ps-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.3rem;
+    block-size: 1.3rem;
+    border-radius: 999px;
+    font-family: var(--sl-font-headings);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sl-color-text-invert);
+    background: var(--sl-color-accent);
+  }
+
+  .ps-title {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .ps-hint {
+    font-size: 0.64rem;
+    color: var(--sl-color-text-accent);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.25rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+
+  figcaption {
+    margin-top: 0.9rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.5;
+  }
+</style>
+
+<script>
+  // Swap general-set icons (Dark ↔ Light) with the Starlight theme.
+  function applyIconTheme() {
+    const light = document.documentElement.dataset.theme === "light";
+    document.querySelectorAll<HTMLImageElement>(".ps-ico[data-light]").forEach((el) => {
+      if (!el.dataset.darkSrc) el.dataset.darkSrc = el.getAttribute("src") || "";
+      const target = light ? el.getAttribute("data-light") : el.dataset.darkSrc;
+      if (target && el.getAttribute("src") !== target) el.setAttribute("src", target);
+    });
+  }
+
+  applyIconTheme();
+  const obs = new MutationObserver(applyIconTheme);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  document.addEventListener("astro:after-swap", applyIconTheme);
+</script>

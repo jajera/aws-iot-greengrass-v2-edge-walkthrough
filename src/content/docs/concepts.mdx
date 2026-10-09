@@ -1,0 +1,37 @@
+---
+title: Concepts
+description: Greengrass V2 terms as this greenhouse lab uses them — core, client, component, bridge, rule.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import ConceptCards from "@/components/ConceptCards.astro";
+
+<Tooltip term="greengrass-v2" label="Greengrass V2" /> runs software on an edge
+host and can connect local devices and cloud services. Terms below match how this
+walkthrough uses them.
+
+## Terms
+
+<ConceptCards />
+
+## Out of scope
+
+Stream Manager, ESP32 firmware OTA, IoT Analytics, Device Defender, multi-core HA,
+Windows cores, Nucleus lite install, SageMaker Edge Manager, Docker components,
+console auto-provision as the only install path.
+
+In scope after the local loop: Greengrass cloud deployments from S3, LogManager
+→ CloudWatch Logs, IoT rules → S3 / DynamoDB / CloudWatch, SNS → Lambda →
+cloud-to-edge commands, and SageMaker-trained ONNX inference on the core. Start
+at [Deploy from the cloud](/deploy-cloud/).
+
+See also: [Why Greengrass?](/why-greengrass/).
+
+<Aside type="tip">
+[AWS Greengrass V2 developer guide](https://docs.aws.amazon.com/greengrass/v2/developerguide/what-is-iot-greengrass.html)
+for API and component details. Verified lab facts:
+<code>.kiro/steering/aws-source-lock.md</code>.
+</Aside>
+
+Next: [Why Greengrass?](/why-greengrass/).

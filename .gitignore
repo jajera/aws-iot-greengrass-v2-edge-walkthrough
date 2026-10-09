@@ -1,0 +1,49 @@
+# Local config (copy from example)
+config/walkthrough.env
+
+# Device certificates and keys
+certs/**
+!certs/.gitkeep
+firmware/**/certs/**
+!firmware/**/certs/.gitkeep
+**/*.pem
+**/*.key
+**/*.crt
+!**/*.example.*
+
+
+# Greengrass / installer downloads
+.greengrass/
+greengrass-*.zip
+GreengrassInstaller/
+
+# AWS CLI / script outputs
+aws/generated/
+out/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Firmware build
+.pio/
+**/.pio/
+firmware/**/build/
+firmware/**/sdkconfig
+firmware/**/sdkconfig.old
+firmware/**/dependencies.lock
+firmware/**/managed_components/
+
+# Node / Starlight
+node_modules/
+dist/
+.astro/
+.cache/

@@ -1,0 +1,188 @@
+---
+/**
+ * ComponentSteps — the four steps on this page, in order, with the host each
+ * runs on. Overview rail above the step-by-step sections (matches the cloud /
+ * prepare-nuc / nucleus / deploy rails).
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/ (general
+ * set has Light/Dark variants, swapped per theme in the script below), under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const gen = (name: string) => ({
+  dark: `${ICONS}/resource/general/Res_${name}_48_Dark.svg`,
+  light: `${ICONS}/resource/general/Res_${name}_48_Light.svg`,
+});
+
+type Host = "cloud" | "nuc";
+interface Step {
+  n: number;
+  icon?: string;
+  gen?: { dark: string; light: string };
+  title: string;
+  cli: string;
+  host: Host;
+}
+
+const steps: Step[] = [
+  { n: 1, icon: `${ICONS}/group/iot/AWS-IoT-Greengrass-Deployment_32.svg`, title: "Deploy greengrass-cli", cli: "create-deployment", host: "cloud" },
+  { n: 2, icon: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Recipe_48.svg`, title: "Copy recipe + artifact", cli: "cp → /opt/gg-edge", host: "nuc" },
+  { n: 3, icon: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Component_48.svg`, title: "Local deploy", cli: "greengrass-cli … --merge", host: "nuc" },
+  { n: 4, gen: gen("Magnifying-Glass"), title: "Verify RUNNING", cli: "component list · tail log", host: "nuc" },
+];
+
+const hostLabel: Record<Host, string> = { cloud: "cloud", nuc: "NUC" };
+---
+
+<figure class="cps not-content" aria-labelledby="cps-caption">
+  <ol class="cps-rail">
+    {
+      steps.map((s) => (
+        <li class="cps-step">
+          <span class="cps-num">{s.n}</span>
+          {s.gen ? (
+            <img class="cps-ico" src={s.gen.dark} data-light={s.gen.light} alt="" width="30" height="30" loading="lazy" />
+          ) : (
+            <img class="cps-ico" src={s.icon} alt="" width="30" height="30" loading="lazy" />
+          )}
+          <span class="cps-title">{s.title}</span>
+          <code class="cps-cli">{s.cli}</code>
+          <span class={`cps-host cps-host--${s.host}`}>{hostLabel[s.host]}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption id="cps-caption">
+    Deploy Cli from the cloud (keeping the client-device stack), then build the
+    closed-loop component locally with <code>greengrass-cli</code>. RUNNING + a
+    <code>subscribed to gg-edge/sensor</code> log line = good.
+  </figcaption>
+</figure>
+
+<style>
+  .cps {
+    margin: 1.5rem 0;
+  }
+
+  .cps-rail {
+    margin: 0;
+    padding: 1rem 0.9rem;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .cps-step {
+    flex: 1 1 8.5rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.75rem 0.55rem 0.7rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .cps-step img {
+    display: block;
+  }
+
+  .cps-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.3rem;
+    block-size: 1.3rem;
+    border-radius: 999px;
+    font-family: var(--sl-font-headings);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sl-color-text-invert);
+    background: var(--sl-color-accent);
+  }
+
+  .cps-title {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .cps-cli {
+    font-size: 0.62rem;
+    color: var(--sl-color-text-accent);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.25rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+
+  .cps-host {
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 0.08rem 0.35rem;
+    border-radius: 0.25rem;
+  }
+
+  .cps-host--cloud {
+    color: var(--sl-color-text-accent);
+    background: color-mix(in oklab, var(--sl-color-accent) 16%, transparent);
+  }
+
+  .cps-host--nuc {
+    color: var(--sl-color-gray-2);
+    background: color-mix(in oklab, var(--sl-color-gray-4) 22%, transparent);
+  }
+
+  figcaption {
+    margin-top: 0.9rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.5;
+  }
+
+  figcaption code {
+    font-size: 0.82em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+</style>
+
+<script>
+  // Swap general-set icons (Dark ↔ Light) with the Starlight theme.
+  function applyIconTheme() {
+    const light = document.documentElement.dataset.theme === "light";
+    document.querySelectorAll<HTMLImageElement>(".cps-ico[data-light]").forEach((el) => {
+      if (!el.dataset.darkSrc) el.dataset.darkSrc = el.getAttribute("src") || "";
+      const target = light ? el.getAttribute("data-light") : el.dataset.darkSrc;
+      if (target && el.getAttribute("src") !== target) el.setAttribute("src", target);
+    });
+  }
+
+  applyIconTheme();
+  const obs = new MutationObserver(applyIconTheme);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  document.addEventListener("astro:after-swap", applyIconTheme);
+</script>

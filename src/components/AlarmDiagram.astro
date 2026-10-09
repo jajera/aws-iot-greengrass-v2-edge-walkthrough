@@ -1,0 +1,143 @@
+---
+/**
+ * AlarmDiagram — this page: telemetry → CloudWatch metric → alarm → SNS email.
+ * Icons from https://aws-icons.johna.kiwi/ under AWS Trademark Guidelines.
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  iot: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+  cw: `${ICONS}/service/management/Arch_Amazon-CloudWatch_64.svg`,
+  sns: `${ICONS}/service/integration/Arch_Amazon-Simple-Notification-Service_64.svg`,
+};
+---
+
+<figure class="al not-content" aria-labelledby="al-caption">
+  <div class="al-row">
+    <div class="al-node">
+      <img src={img.iot} alt="" width="40" height="40" loading="lazy" />
+      <span class="al-name">IoT Core</span>
+      <span class="al-sub">gg-edge/telemetry/+</span>
+    </div>
+
+    <span class="al-hop" data-label="rule …_telemetry_cw">→</span>
+
+    <div class="al-node al-node--hub">
+      <img src={img.cw} alt="" width="40" height="40" loading="lazy" />
+      <span class="al-name">CloudWatch</span>
+      <span class="al-sub">ChipTempC-&lt;thing&gt; · alarm</span>
+    </div>
+
+    <span class="al-hop" data-label="ALARM / OK">→</span>
+
+    <div class="al-node al-node--dest">
+      <img src={img.sns} alt="" width="40" height="40" loading="lazy" />
+      <span class="al-name">SNS</span>
+      <span class="al-sub">email · Lambda next</span>
+    </div>
+  </div>
+
+  <figcaption id="al-caption">
+    Threshold is each zone’s current DynamoDB <code>tempC</code> + 2 °C. Next page
+    attaches Lambda to the same topic for blue RGB.
+  </figcaption>
+</figure>
+
+<style>
+  .al {
+    margin: 1.5rem 0;
+  }
+
+  .al-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 1.1rem 0.95rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.9rem;
+    background:
+      radial-gradient(
+        ellipse 90% 55% at 50% -8%,
+        var(--patina-accent-soft, color-mix(in oklab, var(--sl-color-accent) 12%, transparent)),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .al-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    width: min(100%, 22rem);
+    padding: 0.7rem 0.55rem;
+    text-align: center;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .al-node--hub {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-hairline));
+  }
+
+  .al-node--dest {
+    border-color: color-mix(in oklab, #3b82f6 35%, var(--sl-color-hairline));
+  }
+
+  .al-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+  }
+
+  .al-sub {
+    font-size: 0.65rem;
+    color: var(--sl-color-gray-3);
+    line-height: 1.25;
+  }
+
+  /* "label ↓" between vertically stacked nodes. The element's own text is the
+     inline "→" glyph — hide it and draw the label + down arrow via pseudos. */
+  .al-hop {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    line-height: 1;
+    font-size: 0;
+  }
+
+  .al-hop::before {
+    content: attr(data-label);
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    line-height: 1.2;
+  }
+
+  .al-hop::after {
+    content: "↓";
+    font-size: 1.1rem;
+    color: var(--sl-color-accent);
+  }
+
+  figcaption {
+    margin-top: 0.75rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.45;
+  }
+
+  figcaption code {
+    font-size: 0.85em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+</style>

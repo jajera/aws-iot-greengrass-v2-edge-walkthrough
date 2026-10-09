@@ -1,0 +1,122 @@
+---
+title: Flash zones
+description: Build and flash the ESP-IDF client firmware; load certs, connect to the core, publish telemetry.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import FirmwareSteps from "@/components/FirmwareSteps.astro";
+
+Firmware lives in [`firmware/gg-edge-client`](https://github.com/jajera/aws-iot-greengrass-v2-edge-walkthrough/tree/main/firmware/gg-edge-client).
+It targets <Tooltip term="esp32-s3" label="ESP32-S3" />, uses{" "}
+<Tooltip term="discovery" label="discovery" />, connects to{" "}
+<Tooltip term="moquette" label="Moquette" /> with the **client** certificate,
+and does three things:
+
+- publishes **BOOT** press/release on `gg-edge/sensor`
+- publishes chip-temperature telemetry every 10 s on `gg-edge/telemetry/<thing>`
+- drives the onboard RGB from `gg-edge/actuator/<thing>`, using the color the
+  sender chooses (green = button loop, blue = cloud, red = edge ML)
+
+The temperature comes from the ESP32-S3’s internal sensor
+([temperature sensor driver](https://docs.espressif.com/projects/esp-idf/en/v5.3.2/esp32s3/api-reference/peripherals/temp_sensor.html)),
+so no extra hardware is needed. It reads the die rather than the air, a few
+degrees above room temperature, in steps of about 0.4–1 °C. A thumb on the
+module warms it enough to trip the alarm and ML pages.
+
+Steps on this page:
+
+<FirmwareSteps />
+
+## 1. Copy certificates
+
+```bash frame="terminal"
+cp "$CLIENT_CERTS_DIR/device.pem.crt" firmware/gg-edge-client/main/certs/
+cp "$CLIENT_CERTS_DIR/private.pem.key" firmware/gg-edge-client/main/certs/
+cp "$CLIENT_CERTS_DIR/AmazonRootCA1.pem" firmware/gg-edge-client/main/certs/
+```
+
+```text
+(no output)
+```
+
+Do not commit these PEM files.
+
+Extra zones: copy from `$CLIENT_CERTS_DIR_2` / `_3` into that board’s build tree
+(or a separate checkout), and set **Client Thing name** in menuconfig to the
+matching `$CLIENT_THING_NAME_*`.
+
+## 2. Configure and flash
+
+With <Tooltip term="esp-idf" label="ESP-IDF" /> from
+[Tooling](/tooling/)
+([v5.1+](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/))
+exported in your shell:
+
+### Set target and menuconfig
+
+```bash frame="terminal"
+cd firmware/gg-edge-client
+idf.py set-target esp32s3
+idf.py menuconfig
+```
+
+```text
+Target set to esp32s3
+… menuconfig (save and exit) …
+```
+
+Set under **GG Edge Client**:
+
+- Wi‑Fi SSID / password
+- Client Thing name (`CLIENT_THING_NAME`)
+- Region (`AWS_REGION`)
+- IoT data endpoint is used only for reference; discovery uses `greengrass-ats.iot.<region>.amazonaws.com`
+- Telemetry interval (`GG_TELEMETRY_INTERVAL_S`, default 10 s)
+
+### Build, flash, and monitor
+
+```bash frame="terminal"
+idf.py build flash monitor
+```
+
+```text
+Project build complete. To flash, run:
+ idf.py -p (PORT) flash
+Connecting to /dev/ttyACM0...
+wifi connected
+discovered core 192.0.2.10:8883
+mqtt connected to core
+```
+
+## 3. Expected serial log
+
+Boot through to the first telemetry message (`esp32-1`). Example host
+`192.0.2.10` is the docs stand-in for the NUC; discovery returns your real LAN
+IP.
+
+```text
+I (257) gg-edge: RGB strip on GPIO 48 — boot blink
+I (1007) gg-edge: RGB -> off
+I (2217) gg-edge: chip temperature sensor ready: 28.9 C
+I (3017) gg-edge: wifi connected
+I (4197) gg-edge: discovered core 192.0.2.10:8883
+I (4197) gg-edge: mqtt connected to core
+I (4197) gg-edge: subscribed gg-edge/actuator/gg-edge-wt-dev-esp32-1
+I (13207) gg-edge: telemetry {"thing":"gg-edge-wt-dev-esp32-1","tempC":28.90,"rssi":-29,"uptimeS":13,"rgb":"off"} msg_id=0
+```
+
+1. `discovered core <nuc-ip>:8883` from{" "}
+   <Tooltip term="discovery" label="discovery" />
+2. `mqtt connected to core` (<Tooltip term="mtls" label="mTLS" /> to Moquette)
+3. A `telemetry` JSON line every 10 s
+4. On button press: `published sensor event=press`
+5. After the closed-loop component runs: `actuator msg on gg-edge/actuator/<thing>` and `RGB -> green (on)`
+
+<Aside type="caution">
+Client ID must equal the Thing name. Association and client{" "}
+<Tooltip term="iot-policy" label="IoT policy" /> (`greengrass:Discover`) must
+already be in place.
+</Aside>
+
+Next: [Prove the LAN loop](/prove-lan/).

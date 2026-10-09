@@ -1,0 +1,260 @@
+---
+/**
+ * Esp32S3DevkitDiagram — SVG of ESP32-S3-DevKitC-1-class board (USB-C at
+ * bottom), proportions match common WROOM-1 DevKit photos: RGB lower-left
+ * (lab actuator), RST above BOOT mid-right.
+ *
+ * https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html
+ */
+const GUIDE_URL =
+  "https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html";
+
+const leftPins = [
+  "3V3", "3V3", "RST", "4", "5", "6", "7", "15", "16", "17", "18", "8",
+  "3", "46", "9", "10", "11", "12", "13", "14", "5V", "G",
+];
+const rightPins = [
+  "G", "TX", "RX", "1", "2", "42", "41", "40", "39", "38", "37", "36",
+  "35", "0", "45", "48", "47", "21", "20", "19", "G", "G",
+];
+---
+
+<figure class="dk not-content" aria-labelledby="dk-caption">
+  <div class="dk-wrap">
+    <svg
+      class="dk-svg"
+      viewBox="0 0 320 480"
+      role="img"
+      aria-label="ESP32-S3 DevKit: module at top, RGB lower-left as actuator, RST and BOOT on the right, two USB-C ports at bottom"
+    >
+      <defs>
+        <linearGradient id="pcb" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1c1c1c" />
+          <stop offset="100%" stop-color="#0d0d0d" />
+        </linearGradient>
+        <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#c8c8c8" />
+          <stop offset="40%" stop-color="#9a9a9a" />
+          <stop offset="100%" stop-color="#6e6e6e" />
+        </linearGradient>
+        <radialGradient id="rgbFill" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="55%" stop-color="#e2e8f0" />
+          <stop offset="100%" stop-color="#94a3b8" />
+        </radialGradient>
+      </defs>
+
+      {/* PCB outline */}
+      <rect x="40" y="8" width="240" height="464" rx="8" fill="url(#pcb)" stroke="#333" stroke-width="1.5" />
+
+      {/* Left pads + labels */}
+      {leftPins.map((label, i) => {
+        const y = 36 + i * 18;
+        return (
+          <g>
+            <circle cx="48" cy={y} r="3.2" fill="#d4d4d4" stroke="#888" stroke-width="0.6" />
+            <text x="58" y={y + 3} fill="#a3a3a3" font-size="7.5" font-family="ui-monospace,monospace">{label}</text>
+          </g>
+        );
+      })}
+
+      {/* Right pads + labels */}
+      {rightPins.map((label, i) => {
+        const y = 36 + i * 18;
+        return (
+          <g>
+            <circle cx="272" cy={y} r="3.2" fill="#d4d4d4" stroke="#888" stroke-width="0.6" />
+            <text
+              x="262"
+              y={y + 3}
+              text-anchor="end"
+              fill="#a3a3a3"
+              font-size="7.5"
+              font-family="ui-monospace,monospace"
+            >
+              {label}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Antenna tip */}
+      <rect x="100" y="10" width="120" height="10" rx="2" fill="#111" />
+
+      {/* WROOM shield */}
+      <rect x="70" y="22" width="180" height="100" rx="3" fill="url(#shield)" stroke="#555" />
+      <rect x="78" y="30" width="164" height="84" rx="2" fill="#b0b0b0" opacity="0.35" />
+      <text x="160" y="68" text-anchor="middle" fill="#1a1a1a" font-size="11" font-weight="700" font-family="ui-sans-serif,system-ui,sans-serif">
+        ESP32-S3-WROOM-1
+      </text>
+      <text x="160" y="84" text-anchor="middle" fill="#333" font-size="8" font-family="ui-sans-serif,system-ui,sans-serif">
+        ESPRESSIF
+      </text>
+
+      {/* 1117C regulator — center */}
+      <rect x="118" y="140" width="52" height="22" rx="2" fill="#2a2a2a" stroke="#666" />
+      <text x="144" y="155" text-anchor="middle" fill="#9ca3af" font-size="8" font-family="ui-monospace,monospace">
+        1117C
+      </text>
+
+      {/* RGB LED — lab actuator (green = on) */}
+      <rect x="78" y="248" width="36" height="36" rx="3" fill="#052e16" stroke="#4ade80" stroke-width="2" />
+      <circle cx="96" cy="266" r="10" fill="#22c55e" stroke="#86efac" stroke-width="1.2" />
+      <text x="120" y="262" fill="#4ade80" font-size="9" font-weight="700" font-family="ui-sans-serif,system-ui,sans-serif">
+        RGB
+      </text>
+      <text x="120" y="274" fill="#86efac" font-size="7" font-family="ui-sans-serif,system-ui,sans-serif">
+        green = on
+      </text>
+
+      {/* RST + BOOT — mid-right, RST above BOOT */}
+      <g>
+        <rect x="198" y="200" width="28" height="22" rx="3" fill="#3f3f46" stroke="#a1a1aa" stroke-width="1.2" />
+        <circle cx="212" cy="211" r="6" fill="#27272a" stroke="#d4d4d8" />
+        <text x="212" y="236" text-anchor="middle" fill="#d4d4d8" font-size="8" font-weight="700" font-family="ui-sans-serif,system-ui,sans-serif">
+          RST
+        </text>
+
+        <rect x="198" y="248" width="28" height="22" rx="3" fill="#0369a1" stroke="#7dd3fc" stroke-width="1.6" />
+        <circle cx="212" cy="259" r="6.5" fill="#0ea5e9" stroke="#e0f2fe" stroke-width="1.2" />
+        <text x="212" y="286" text-anchor="middle" fill="#7dd3fc" font-size="9" font-weight="700" font-family="ui-sans-serif,system-ui,sans-serif">
+          BOOT
+        </text>
+        <text x="212" y="296" text-anchor="middle" fill="#38bdf8" font-size="7" font-family="ui-sans-serif,system-ui,sans-serif">
+          GPIO 0
+        </text>
+      </g>
+
+      {/* UART bridge near right USB */}
+      <rect x="178" y="318" width="40" height="28" rx="2" fill="#1f1f1f" stroke="#525252" />
+      <text x="198" y="336" text-anchor="middle" fill="#737373" font-size="7" font-family="ui-monospace,monospace">
+        UART
+      </text>
+
+      {/* USB-C ports */}
+      <g>
+        {/* left UART */}
+        <rect x="72" y="420" width="68" height="28" rx="6" fill="#e5e5e5" stroke="#737373" stroke-width="1.2" />
+        <rect x="80" y="428" width="52" height="12" rx="3" fill="#171717" />
+        <text x="106" y="416" text-anchor="middle" fill="#a3a3a3" font-size="7" font-family="ui-sans-serif,system-ui,sans-serif">
+          USB-UART
+        </text>
+        {/* right native USB */}
+        <rect x="180" y="418" width="68" height="30" rx="6" fill="#e5e5e5" stroke="#38bdf8" stroke-width="1.8" />
+        <rect x="188" y="427" width="52" height="12" rx="3" fill="#171717" />
+        <text x="214" y="414" text-anchor="middle" fill="#7dd3fc" font-size="8" font-weight="700" font-family="ui-sans-serif,system-ui,sans-serif">
+          USB
+        </text>
+      </g>
+
+    </svg>
+
+    <ol class="dk-callouts">
+      <li class="dk-callout dk-callout--boot">
+        <strong>BOOT</strong>
+        <span>Right side, below <strong>RST</strong> — press for sense</span>
+        <code>GPIO 0 → gg-edge/sensor</code>
+      </li>
+      <li class="dk-callout dk-callout--led">
+        <strong>RGB (actuator)</strong>
+        <span>
+          White square, lower-left. Turns <strong>green</strong> on press, off on
+          release. GPIO 48 (v1.0 default) or 38 (v1.1).
+        </span>
+        <code>WS2812 → gg-edge/actuator</code>
+      </li>
+      <li class="dk-callout dk-callout--usb">
+        <strong>USB</strong>
+        <span>Bottom right USB-C — flash / serial (USB Serial/JTAG)</span>
+      </li>
+    </ol>
+  </div>
+
+  <figcaption id="dk-caption">
+    DevKit-class ESP32-S3-WROOM-1 (USB-C). Layout matches common boards and
+    Espressif’s{" "}
+    <a href={GUIDE_URL} target="_blank" rel="noopener noreferrer">
+      DevKitC-1 guide
+    </a>
+    . Lab: <strong>BOOT</strong> + onboard <strong>RGB</strong>.
+  </figcaption>
+</figure>
+
+<style>
+  .dk {
+    margin: 1.5rem 0;
+  }
+
+  .dk-wrap {
+    display: grid;
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  @media (min-width: 800px) {
+    .dk-wrap {
+      grid-template-columns: minmax(240px, 300px) 1fr;
+      gap: 1.75rem;
+    }
+  }
+
+  .dk-svg {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    margin-inline: auto;
+    display: block;
+    border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    background: #050505;
+  }
+
+  .dk-callouts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .dk-callout {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-gray-6);
+  }
+
+  .dk-callout strong {
+    font-size: 0.85rem;
+  }
+
+  .dk-callout span {
+    font-size: 0.8rem;
+    color: var(--sl-color-gray-2);
+  }
+
+  .dk-callout code {
+    width: fit-content;
+    font-size: 0.75rem;
+  }
+
+  .dk-callout--boot {
+    border-color: color-mix(in srgb, #0ea5e9 45%, var(--sl-color-gray-5));
+  }
+
+  .dk-callout--led {
+    border-color: color-mix(in srgb, #22c55e 50%, var(--sl-color-gray-5));
+  }
+
+  .dk-callout--usb {
+    border-color: color-mix(in srgb, #38bdf8 40%, var(--sl-color-gray-5));
+  }
+
+  figcaption {
+    margin-top: 0.85rem;
+    font-size: 0.85rem;
+    color: var(--sl-color-gray-2);
+  }
+</style>

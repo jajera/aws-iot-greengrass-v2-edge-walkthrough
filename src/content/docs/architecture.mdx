@@ -1,0 +1,149 @@
+---
+title: Architecture
+description: Overall greenhouse architecture — ESP32 through Greengrass and IoT Core to rules, storage, alarms, commands, and edge ML — plus topic-level wiring.
+---
+
+import Tooltip from "@/components/Tooltip.astro";
+import AwsArchDiagram from "@/components/AwsArchDiagram.astro";
+import InterconnectDiagram from "@/components/InterconnectDiagram.astro";
+import DeployCloudDiagram from "@/components/DeployCloudDiagram.astro";
+import ControlDownDiagram from "@/components/ControlDownDiagram.astro";
+
+This page is the map of the finished lab. Read it before{" "}
+[Deploy from the cloud](/deploy-cloud/); the pages after that only build the
+pieces shown here.
+
+RGB: **green** = button loop · **blue** = cloud command · **red** = edge model.
+
+Zones never talk to AWS. They use mTLS MQTT to{" "}
+<Tooltip term="moquette" label="Moquette" />. The{" "}
+<Tooltip term="mqtt-bridge" label="MQTT bridge" /> is the only process that
+crosses LocalMqtt ↔ Pubsub ↔ IoT Core.
+
+## Overall architecture
+
+ESP32 → Greengrass core → IoT Core → rules → S3 · DynamoDB · CloudWatch, then
+the control and ML return paths.
+
+<AwsArchDiagram />
+
+## Topic-level interconnection
+
+Every bridge mapping, rule artifact, and component pub/sub.
+
+<InterconnectDiagram />
+
+## Software handover (local → cloud)
+
+Act 1 installed with <Tooltip term="greengrass-cli" label="greengrass-cli" />.
+Act 2 moves that same stack to a Thing-group deployment from S3 and turns on
+LogManager.
+
+<DeployCloudDiagram />
+
+## Component subscriptions
+
+<table>
+  <thead>
+    <tr>
+      <th>Component</th>
+      <th>Subscribes</th>
+      <th>Publishes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <code>GgEdgeLoop</code> 1.1.0
+      </td>
+      <td>
+        <code>gg-edge/sensor</code>,{" "}
+        <code>gg-edge/cloud/command/+</code>
+      </td>
+      <td>
+        <code>gg-edge/actuator/&lt;thing&gt;</code> (green or blue),{" "}
+        <code>gg-edge/cloud/ack/&lt;thing&gt;</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code>ZoneAnomaly</code> 1.0.0
+      </td>
+      <td>
+        <code>gg-edge/telemetry/+</code>
+      </td>
+      <td>
+        <code>gg-edge/inference/&lt;thing&gt;</code>,{" "}
+        <code>gg-edge/actuator/&lt;thing&gt;</code> (red)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Control down — ordered hops
+
+The cloud command (blue RGB) path, in order:
+
+<ControlDownDiagram />
+
+## Who owns the RGB
+
+<table>
+  <thead>
+    <tr>
+      <th>Color</th>
+      <th>Publisher</th>
+      <th>Topic path</th>
+      <th>Page</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <strong>green</strong>
+      </td>
+      <td>
+        <code>GgEdgeLoop</code> (button)
+      </td>
+      <td>
+        sensor → Pubsub → actuator → LocalMqtt
+      </td>
+      <td>
+        <a href="/prove-lan/">Prove the LAN loop</a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <strong>blue</strong>
+      </td>
+      <td>
+        <code>GgEdgeLoop</code> (cloud command)
+      </td>
+      <td>
+        IoT Core → command → Pubsub → actuator
+      </td>
+      <td>
+        <a href="/command/">Cloud commands</a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <strong>red</strong>
+      </td>
+      <td>
+        <code>ZoneAnomaly</code>
+      </td>
+      <td>
+        telemetry → Pubsub → actuator
+      </td>
+      <td>
+        <a href="/inference/">Edge inference</a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Last message wins on the wire. DynamoDB `kind=actuator` records `source` so you
+can see which layer acted last.
+
+Next: [Deploy from the cloud](/deploy-cloud/).

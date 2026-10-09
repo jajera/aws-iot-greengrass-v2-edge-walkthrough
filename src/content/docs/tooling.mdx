@@ -1,0 +1,207 @@
+---
+title: Tooling
+description: Install and version-check AWS CLI, jq, and ESP-IDF on the workstation.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Checklist from "@/components/Checklist.astro";
+import Tooltip from "@/components/Tooltip.astro";
+
+<Checklist
+  id="tooling"
+  items={[
+    "AWS CLI v2 on the workstation",
+    "jq available for cert JSON",
+    "AWS profile and Region configured",
+    "Python 3.12 for ESP-IDF (Ubuntu default)",
+    "ESP-IDF v5.1+ for ESP32-S3",
+  ]}
+/>
+
+## Overview
+
+Install and version-check **workstation** tools **before**
+[Prerequisites](/prerequisites/). Do not assume they are already present.
+
+NUC packages (Java, Python) wait until [Install Nucleus](/nucleus/). This lab
+pins **Python 3.12** on both hosts — Ubuntu 24.04’s default (`apt install
+python3`). No deadsnakes / extra interpreters.
+
+## Version matrix
+
+<table>
+  <thead>
+    <tr>
+      <th>Tool</th>
+      <th>Minimum</th>
+      <th>Demo / verified here</th>
+      <th>Why</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>AWS CLI v2</td>
+      <td>
+        <strong>latest</strong>
+      </td>
+      <td>
+        <strong>latest</strong>
+      </td>
+      <td>
+        No feature pin — need <code>iot</code> + <code>greengrassv2</code>
+      </td>
+    </tr>
+    <tr>
+      <td>jq</td>
+      <td>1.6+</td>
+      <td>
+        <strong>1.7</strong>
+      </td>
+      <td>
+        Parse <code>create-keys-and-certificate</code> JSON
+      </td>
+    </tr>
+    <tr>
+      <td>Python</td>
+      <td>
+        <strong>3.12</strong>
+      </td>
+      <td>
+        <strong>3.12.3</strong>
+      </td>
+      <td>
+        Ubuntu 24.04 default; ESP-IDF + NUC components (Espressif supports
+        3.10–3.14)
+      </td>
+    </tr>
+    <tr>
+      <td>ESP-IDF</td>
+      <td>
+        <strong>5.1</strong>
+      </td>
+      <td>
+        <strong>5.3.2</strong>
+      </td>
+      <td>
+        <Tooltip term="esp32-s3" label="ESP32-S3" /> target (supported since IDF
+        v4.4)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Install AWS CLI v2
+
+Official
+[install guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+Use the **latest** v2 bundle. On ARM use `awscli-exe-linux-aarch64.zip`.
+
+### Install the CLI
+
+```bash frame="terminal"
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install --update
+aws --version
+```
+
+```text
+aws-cli/2.x.y Python/… Linux/… exe/x86_64.…
+```
+
+### Confirm AWS CLI
+
+```bash frame="terminal"
+which aws
+aws iot help >/dev/null && echo iot_ok
+aws greengrassv2 help >/dev/null && echo greengrassv2_ok
+```
+
+```text
+/usr/local/bin/aws
+iot_ok
+greengrassv2_ok
+```
+
+## Install jq
+
+```bash frame="terminal"
+sudo apt-get update
+sudo apt-get install -y jq
+jq --version
+```
+
+```text
+jq-1.7
+```
+
+## Configure the profile
+
+Use a named profile with IoT / IAM / Greengrass permissions. This lab’s evidence
+pass used SSO profile **`lab`**:
+
+### Sign in and confirm identity
+
+```bash frame="terminal"
+aws sso login --profile lab
+export AWS_PROFILE=lab
+export AWS_REGION=ap-southeast-2
+aws sts get-caller-identity
+```
+
+```text
+{
+    "UserId": "AROAEXAMPLE:you",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/AWSReservedSSO_AdministratorAccess_…/you"
+}
+```
+
+Save the same profile name in `config/walkthrough.env` on
+[Prerequisites](/prerequisites/).
+
+## Python 3.12 (workstation)
+
+ESP-IDF’s installer follows whichever `python3` is first on `PATH`. Use Ubuntu
+24.04’s default **3.12** (no PPA):
+
+```bash frame="terminal"
+python3 --version
+```
+
+```text
+Python 3.12.3
+```
+
+If `python3` points at a newer side install, put `/usr/bin` first (or call
+`/usr/bin/python3.12`) when you run IDF `install.sh` so the venv is
+`…/idf*_py3.12_env`.
+
+## ESP-IDF
+
+Needed later to flash the <Tooltip term="esp32-s3" label="ESP32-S3" />. Follow
+Espressif’s
+[ESP32-S3 get started](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/)
+and install **v5.1 or later** (evidence pass: **5.3.2**).
+
+### Confirm IDF version
+
+```bash frame="terminal"
+. $HOME/esp/esp-idf/export.sh
+idf.py --version
+python --version
+```
+
+```text
+ESP-IDF v5.3.2
+Python 3.12.3
+```
+
+`python --version` after `export.sh` is the IDF venv (**3.12.x**).
+
+Any current stable IDF that lists the `esp32s3` target is fine
+([ESP32-S3 get started](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/)).
+
+## Next
+
+[Prerequisites](/prerequisites/).

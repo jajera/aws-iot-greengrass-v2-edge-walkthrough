@@ -1,0 +1,29 @@
+---
+description: Product goals and non-goals for the Greengrass edge walkthrough
+alwaysApply: true
+---
+
+# Product
+
+Walkthrough: AWS IoT Greengrass V2 **greenhouse** lab on an Intel NUC6CAY **core**
+with ESP32-S3 **client devices** (zones), closed-loop sense → actuate. Maps AWS
+marketing concepts onto real hardware. NUC chosen because one was already on hand.
+Starlight docs. AWS CLI only — no Terraform, no provision/deploy wrappers.
+
+## Outcomes
+
+- Core vs client (certs, roles, discovery) is explicit; SPOF called out vs direct IoT.
+- Nucleus on Ubuntu 24.04 (NUC6CAY); ESP32-S3 as client devices, not second cores.
+- Real sense→actuate loop (button → RGB) plus chip-temperature telemetry.
+- Act 2 (Wire into AWS) as a continuous demo: S3 artifact → cloud deploy (+ LogManager),
+  IoT rules → S3 / DynamoDB / CloudWatch alarm → SNS → Lambda → cloud→edge command,
+  SageMaker → ONNX inference on the core (not Edge Manager).
+- Teardown of every resource, last.
+
+## Non-goals (v1)
+
+Greengrass V1, Terraform/CDK, CI-driven AWS apply, EC2-as-edge happy path,
+Edge Manager, Stream Manager / ESP32 OTA hands-on, Mosquitto-only lab, Docker lab,
+high-level pages without runnable CLI.
+
+Details: `.kiro/steering/product.md`, `AGENTS.md`.

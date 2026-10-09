@@ -1,0 +1,343 @@
+---
+/**
+ * DeployCloudDiagram — hand the core's software from a local greengrass-cli
+ * install over to a cloud Thing-group deployment sourced from S3, and turn on
+ * LogManager → CloudWatch. Topic-level Act 2 wiring: InterconnectDiagram on
+ * Architecture.
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/, used under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  cli: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Component_48.svg`,
+  s3: `${ICONS}/service/storage/Arch_Amazon-Simple-Storage-Service_64.svg`,
+  comp: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Recipe_48.svg`,
+  deploy: `${ICONS}/group/iot/AWS-IoT-Greengrass-Deployment_32.svg`,
+  core: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  cw: `${ICONS}/service/management/Arch_Amazon-CloudWatch_64.svg`,
+};
+---
+
+<figure class="dc not-content" aria-labelledby="dc-caption">
+  {/* Handover: local install → cloud-managed */}
+  <div class="dc-handover">
+    <div class="dc-before">
+      <span class="dc-tag">Act 1 — now</span>
+      <div class="dc-chip">
+        <img src={img.cli} alt="" width="26" height="26" loading="lazy" />
+        <span><code>greengrass-cli</code> local install</span>
+      </div>
+    </div>
+
+    <span class="dc-handover-arrow" data-label="hand over">→</span>
+
+    <div class="dc-after">
+      <span class="dc-tag dc-tag--accent">Act 2 — this page</span>
+      <ol class="dc-steps">
+        <li>
+          <img src={img.s3} alt="" width="26" height="26" loading="lazy" />
+          <span>Upload artifact to <strong>S3</strong></span>
+        </li>
+        <li>
+          <img src={img.comp} alt="" width="26" height="26" loading="lazy" />
+          <span>Register <strong>component version</strong> (1.1.0)</span>
+        </li>
+        <li>
+          <img src={img.deploy} alt="" width="26" height="26" loading="lazy" />
+          <span><strong>Thing-group deployment</strong> replaces the root set</span>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  {/* Result: core runs the cloud-managed stack, logs flow out */}
+  <div class="dc-result">
+    <div class="dc-node dc-node--core">
+      <img src={img.core} alt="" width="38" height="38" loading="lazy" />
+      <span class="dc-name">NUC core</span>
+      <span class="dc-sub">cloud-managed stack · GgEdgeLoop 1.1.0</span>
+    </div>
+
+    <span class="dc-link" data-label="LogManager · 60s">→</span>
+
+    <div class="dc-node dc-node--cw">
+      <img src={img.cw} alt="" width="38" height="38" loading="lazy" />
+      <span class="dc-name">CloudWatch Logs</span>
+      <span class="dc-sub">/aws/greengrass/…</span>
+    </div>
+  </div>
+
+  <figcaption id="dc-caption">
+    <ul>
+      <li>The <strong>button loop keeps working</strong> — only the install source moves from local disk to S3.</li>
+      <li>A Thing-group deploy <strong>replaces</strong> the whole root set, so the stack ships complete (client-device components, Cli, LogManager, GgEdgeLoop).</li>
+      <li>LogManager uploads component logs to CloudWatch every 60&nbsp;s.</li>
+    </ul>
+  </figcaption>
+</figure>
+
+<style>
+  .dc {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* ---- Handover band ---- */
+  .dc-handover {
+    display: flex;
+    align-items: stretch;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding: 1.1rem 0.9rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft, color-mix(in oklab, var(--sl-color-accent) 12%, transparent)),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .dc-before,
+  .dc-after {
+    flex: 1 1 14rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 0.75rem 0.85rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .dc-after {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, var(--sl-color-hairline));
+    background: color-mix(in oklab, var(--sl-color-accent) 6%, var(--sl-color-bg));
+  }
+
+  .dc-tag {
+    font-family: var(--sl-font-headings);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sl-color-gray-3);
+  }
+
+  .dc-tag--accent {
+    color: var(--sl-color-text-accent);
+  }
+
+  .dc-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .dc-chip img {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .dc-steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    counter-reset: dc;
+  }
+
+  .dc-steps li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-2);
+    line-height: 1.3;
+  }
+
+  .dc-steps img {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .dc-steps li::before {
+    counter-increment: dc;
+    content: counter(dc);
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.1rem;
+    block-size: 1.1rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--sl-color-text-invert);
+    background: var(--sl-color-accent);
+  }
+
+  .dc-handover-arrow {
+    flex: 0 0 auto;
+    align-self: center;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .dc-handover-arrow::before {
+    content: attr(data-label);
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    white-space: nowrap;
+  }
+
+  /* ---- Result band ---- */
+  .dc-result {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.9rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .dc-node {
+    flex: 0 1 15rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    text-align: center;
+    padding: 0.8rem 0.7rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .dc-node--core {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 40%, var(--sl-color-hairline));
+  }
+
+  .dc-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+  }
+
+  .dc-sub {
+    font-size: 0.68rem;
+    color: var(--sl-color-gray-3);
+    line-height: 1.3;
+  }
+
+  .dc-link {
+    flex: 0 0 auto;
+    align-self: center;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .dc-link::before {
+    content: attr(data-label);
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--sl-color-text-accent);
+    white-space: nowrap;
+  }
+
+  /* ---- Narrow: stack, arrows point down ---- */
+  @media (max-width: 40rem) {
+    .dc-handover-arrow,
+    .dc-link {
+      flex-direction: row;
+      justify-content: center;
+      gap: 0.35rem;
+      font-size: 0;
+    }
+
+    .dc-handover-arrow::before,
+    .dc-link::before {
+      font-size: 0.62rem;
+    }
+
+    .dc-handover-arrow::after,
+    .dc-link::after {
+      content: "↓";
+      font-size: 1.1rem;
+      line-height: 1;
+      color: var(--sl-color-accent);
+    }
+  }
+
+  figcaption {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+
+  figcaption ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  figcaption li {
+    position: relative;
+    padding-left: 1.1rem;
+    line-height: 1.45;
+  }
+
+  figcaption li::before {
+    content: "›";
+    position: absolute;
+    left: 0.2rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+  }
+
+  figcaption strong {
+    color: var(--sl-color-white);
+  }
+
+  figcaption code {
+    font-size: 0.85em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+</style>

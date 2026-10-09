@@ -1,0 +1,585 @@
+---
+title: Identities
+description: Create core and client Things, certificates, policies, token exchange, and the Greengrass service role with AWS CLI.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import CloudIdentityDiagram from "@/components/CloudIdentityDiagram.astro";
+import CloudStepsDiagram from "@/components/CloudStepsDiagram.astro";
+
+Load naming and paths from `config/walkthrough.env` ([Prerequisites](/prerequisites/)).
+All commands assume the repo root as the current directory. This page is plain{" "}
+<Tooltip term="aws-cli" label="AWS CLI" /> — no wrappers.
+
+### Load lab env
+
+```bash frame="terminal"
+set -a && source config/walkthrough.env && set +a
+```
+
+```text
+(no output)
+```
+
+<Aside type="caution">
+Mutating AWS from an agent session requires `GG_EDGE_ALLOW_AWS=1`. Humans following
+this guide run the commands deliberately in their own shell.
+</Aside>
+
+<Aside type="note">
+Sample outputs use account placeholder `123456789012` and names from
+`config/walkthrough.env.example`. Shapes match a live evidence pass in
+`ap-southeast-2`; your account, endpoint host, and cert IDs differ.
+</Aside>
+
+What this page builds:
+
+<CloudIdentityDiagram />
+
+Build order (plain CLI):
+
+<CloudStepsDiagram />
+
+## 1. IoT data endpoint
+
+### Look up data endpoint
+
+MQTT data endpoint (ATS) for firmware and Nucleus config:
+
+```bash frame="terminal"
+aws iot describe-endpoint --endpoint-type iot:Data-ATS \
+  --query endpointAddress --output text
+```
+
+```text
+example123abc-ats.iot.ap-southeast-2.amazonaws.com
+```
+
+Save it as `AWS_IOT_ENDPOINT` in `walkthrough.env` for the{" "}
+<Tooltip term="esp32-s3" label="ESP32-S3" /> firmware.
+
+## 2. Core Thing and certificate
+
+### Create cert directories
+
+Local folders for core and client PEMs:
+
+```bash frame="terminal"
+mkdir -p "$CORE_CERTS_DIR" "$CLIENT_CERTS_DIR"
+```
+
+```text
+(no output)
+```
+
+### Create core Thing
+
+Register the <Tooltip term="core-device" label="core" /> as an IoT Thing:
+
+```bash frame="terminal"
+aws iot create-thing --thing-name "$CORE_THING_NAME"
+```
+
+```text
+{
+    "thingName": "gg-edge-wt-dev-core",
+    "thingArn": "arn:aws:iot:ap-southeast-2:123456789012:thing/gg-edge-wt-dev-core",
+    "thingId": "01234567-89ab-cdef-0123-456789abcdef"
+}
+```
+
+### Create core certificate
+
+Create and activate the core device certificate; keep the ARN for attaches:
+
+```bash frame="terminal"
+aws iot create-keys-and-certificate --set-as-active \
+  --certificate-pem-outfile "$CORE_CERTS_DIR/device.pem.crt" \
+  --public-key-outfile "$CORE_CERTS_DIR/public.pem.key" \
+  --private-key-outfile "$CORE_CERTS_DIR/private.pem.key" \
+  > "$CORE_CERTS_DIR/create-cert.json"
+CORE_CERT_ARN=$(jq -r .certificateArn "$CORE_CERTS_DIR/create-cert.json")
+echo "$CORE_CERT_ARN" | tee "$CORE_CERTS_DIR/certificateArn.txt"
+```
+
+```text
+arn:aws:iot:ap-southeast-2:123456789012:cert/abcdef0123456789…
+```
+
+### Download Amazon Root CA
+
+So the core can trust IoT Core:
+
+```bash frame="terminal"
+curl -sS https://www.amazontrust.com/repository/AmazonRootCA1.pem \
+  -o "$CORE_CERTS_DIR/AmazonRootCA1.pem"
+```
+
+```text
+(no output)
+```
+
+### Create core IoT policy
+
+From this repo’s policy JSON:
+
+```bash frame="terminal"
+aws iot create-policy \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-core-policy" \
+  --policy-document "file://artifacts/policies/core-device-policy.json"
+```
+
+```text
+{
+    "policyName": "gg-edge-wt-dev-core-policy",
+    "policyArn": "arn:aws:iot:ap-southeast-2:123456789012:policy/gg-edge-wt-dev-core-policy",
+    "policyVersionId": "1"
+}
+```
+
+### Attach policy and Thing principal
+
+Attach the <Tooltip term="iot-policy" label="IoT policy" /> to the cert, then bind
+the cert to the core Thing:
+
+```bash frame="terminal"
+aws iot attach-policy \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-core-policy" \
+  --target "$CORE_CERT_ARN"
+aws iot attach-thing-principal \
+  --thing-name "$CORE_THING_NAME" \
+  --principal "$CORE_CERT_ARN"
+```
+
+```text
+(no output)
+```
+
+## 3. Thing group for deployments
+
+So cloud deployments can target the <Tooltip term="core-device" label="core" />.
+
+### Create Thing group
+
+```bash frame="terminal"
+aws iot create-thing-group --thing-group-name "$CORE_THING_GROUP"
+```
+
+```text
+{
+    "thingGroupName": "gg-edge-wt-dev-cores",
+    "thingGroupArn": "arn:aws:iot:ap-southeast-2:123456789012:thinggroup/gg-edge-wt-dev-cores",
+    "thingGroupId": "01234567-89ab-cdef-0123-456789abcdef"
+}
+```
+
+### Add core and capture group ARN
+
+Put the core in the <Tooltip term="thing-group" label="Thing group" /> and keep
+the ARN for later deployments:
+
+```bash frame="terminal"
+aws iot add-thing-to-thing-group \
+  --thing-group-name "$CORE_THING_GROUP" \
+  --thing-name "$CORE_THING_NAME"
+CORE_THING_GROUP_ARN=$(aws iot describe-thing-group \
+  --thing-group-name "$CORE_THING_GROUP" \
+  --query thingGroupArn --output text)
+echo "$CORE_THING_GROUP_ARN"
+```
+
+```text
+arn:aws:iot:ap-southeast-2:123456789012:thinggroup/gg-edge-wt-dev-cores
+```
+
+## 4. Token exchange role (Nucleus credentials)
+
+<Tooltip term="nucleus" label="Nucleus" /> needs temporary AWS credentials via a{" "}
+<Tooltip term="token-exchange" label="token exchange" /> role alias (
+<Tooltip term="iam" label="IAM" /> + IoT).
+
+### Set role and alias names
+
+```bash frame="terminal"
+TOKEN_ROLE_NAME="${PROJECT_NAME}-${ENVIRONMENT}-token-exchange"
+ROLE_ALIAS_NAME="${PROJECT_NAME}-${ENVIRONMENT}-token-alias"
+echo "$TOKEN_ROLE_NAME"
+echo "$ROLE_ALIAS_NAME"
+```
+
+```text
+gg-edge-wt-dev-token-exchange
+gg-edge-wt-dev-token-alias
+```
+
+### Create token-exchange IAM role
+
+Role that IoT Credentials Provider can assume:
+
+```bash frame="terminal"
+aws iam create-role \
+  --role-name "$TOKEN_ROLE_NAME" \
+  --assume-role-policy-document "file://artifacts/policies/token-exchange-trust.json"
+```
+
+```text
+{
+    "Role": {
+        "Path": "/",
+        "RoleName": "gg-edge-wt-dev-token-exchange",
+        "RoleId": "AROAEXAMPLETOKENEXCH",
+        "Arn": "arn:aws:iam::123456789012:role/gg-edge-wt-dev-token-exchange",
+        "CreateDate": "2026-10-04T10:34:39+00:00",
+        …
+    }
+}
+```
+
+### Attach access policy
+
+Grant logs / S3 artifact access Nucleus needs; print the role ARN:
+
+```bash frame="terminal"
+aws iam put-role-policy \
+  --role-name "$TOKEN_ROLE_NAME" \
+  --policy-name "${TOKEN_ROLE_NAME}-access" \
+  --policy-document "file://artifacts/policies/token-exchange-access.json"
+TOKEN_ROLE_ARN=$(aws iam get-role --role-name "$TOKEN_ROLE_NAME" --query Role.Arn --output text)
+echo "$TOKEN_ROLE_ARN"
+```
+
+```text
+arn:aws:iam::123456789012:role/gg-edge-wt-dev-token-exchange
+```
+
+### Create IoT role alias
+
+Points at the IAM role above:
+
+```bash frame="terminal"
+aws iot create-role-alias \
+  --role-alias "$ROLE_ALIAS_NAME" \
+  --role-arn "$TOKEN_ROLE_ARN"
+```
+
+```text
+{
+    "roleAlias": "gg-edge-wt-dev-token-alias",
+    "roleAliasArn": "arn:aws:iot:ap-southeast-2:123456789012:rolealias/gg-edge-wt-dev-token-alias"
+}
+```
+
+### Resolve role-alias ARN
+
+Needed for the IoT policy document:
+
+```bash frame="terminal"
+ROLE_ALIAS_ARN=$(aws iot describe-role-alias \
+  --role-alias "$ROLE_ALIAS_NAME" \
+  --query roleAliasDescription.roleAliasArn --output text)
+echo "$ROLE_ALIAS_ARN"
+```
+
+```text
+arn:aws:iot:ap-southeast-2:123456789012:rolealias/gg-edge-wt-dev-token-alias
+```
+
+### Create token-exchange IoT policy
+
+Allows the core certificate to assume the alias
+(`iot:AssumeRoleWithCertificate`):
+
+```bash frame="terminal"
+cat > /tmp/token-exchange-iot-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "iot:AssumeRoleWithCertificate",
+      "Resource": "${ROLE_ALIAS_ARN}"
+    }
+  ]
+}
+EOF
+aws iot create-policy \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-token-exchange-policy" \
+  --policy-document file:///tmp/token-exchange-iot-policy.json
+```
+
+```text
+{
+    "policyName": "gg-edge-wt-dev-token-exchange-policy",
+    "policyArn": "arn:aws:iot:ap-southeast-2:123456789012:policy/gg-edge-wt-dev-token-exchange-policy",
+    "policyVersionId": "1"
+}
+```
+
+### Attach token-exchange policy to core cert
+
+```bash frame="terminal"
+aws iot attach-policy \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-token-exchange-policy" \
+  --target "$CORE_CERT_ARN"
+```
+
+```text
+(no output)
+```
+
+## 5. Client Thing and certificate
+
+The <Tooltip term="client-device" label="client device" /> gets its own{" "}
+<Tooltip term="thing" label="Thing" /> and certificate (separate from the core).
+
+### Create client Thing
+
+```bash frame="terminal"
+aws iot create-thing --thing-name "$CLIENT_THING_NAME"
+```
+
+```text
+{
+    "thingName": "gg-edge-wt-dev-esp32-1",
+    "thingArn": "arn:aws:iot:ap-southeast-2:123456789012:thing/gg-edge-wt-dev-esp32-1",
+    "thingId": "fedcba98-7654-3210-fedc-ba9876543210"
+}
+```
+
+### Create client certificate
+
+Create and activate; keep the ARN:
+
+```bash frame="terminal"
+aws iot create-keys-and-certificate --set-as-active \
+  --certificate-pem-outfile "$CLIENT_CERTS_DIR/device.pem.crt" \
+  --public-key-outfile "$CLIENT_CERTS_DIR/public.pem.key" \
+  --private-key-outfile "$CLIENT_CERTS_DIR/private.pem.key" \
+  > "$CLIENT_CERTS_DIR/create-cert.json"
+CLIENT_CERT_ARN=$(jq -r .certificateArn "$CLIENT_CERTS_DIR/create-cert.json")
+echo "$CLIENT_CERT_ARN"
+```
+
+```text
+arn:aws:iot:ap-southeast-2:123456789012:cert/fedcba9876543210…
+```
+
+### Download Root CA and create client policy
+
+```bash frame="terminal"
+curl -sS https://www.amazontrust.com/repository/AmazonRootCA1.pem \
+  -o "$CLIENT_CERTS_DIR/AmazonRootCA1.pem"
+aws iot create-policy \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-client-policy" \
+  --policy-document "file://artifacts/policies/client-device-policy.json"
+```
+
+```text
+{
+    "policyName": "gg-edge-wt-dev-client-policy",
+    "policyArn": "arn:aws:iot:ap-southeast-2:123456789012:policy/gg-edge-wt-dev-client-policy",
+    "policyVersionId": "1"
+}
+```
+
+### Attach client policy and Thing principal
+
+```bash frame="terminal"
+aws iot attach-policy \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-client-policy" \
+  --target "$CLIENT_CERT_ARN"
+aws iot attach-thing-principal \
+  --thing-name "$CLIENT_THING_NAME" \
+  --principal "$CLIENT_CERT_ARN"
+```
+
+```text
+(no output)
+```
+
+### Optional — more ESP32-S3 zone clients
+
+Skip if you only have one board. One client is enough for the closed loop.
+
+Uncomment in `walkthrough.env` (names must stay under `CLIENT_THING_PREFIX` so
+Auth’s `thingName: …-esp32*` rule matches all):
+
+```bash frame="terminal"
+CLIENT_THING_NAME_2="${PROJECT_NAME}-${ENVIRONMENT}-esp32-2"
+CLIENT_CERTS_DIR_2=certs/client-2
+# Optional third zone:
+# CLIENT_THING_NAME_3="${PROJECT_NAME}-${ENVIRONMENT}-esp32-3"
+# CLIENT_CERTS_DIR_3=certs/client-3
+```
+
+```text
+(no output)
+```
+
+Then create each extra Thing + cert (reuse the same client IoT policy). Example for
+zone 2:
+
+```bash frame="terminal"
+mkdir -p "$CLIENT_CERTS_DIR_2"
+aws iot create-thing --thing-name "$CLIENT_THING_NAME_2"
+aws iot create-keys-and-certificate --set-as-active \
+  --certificate-pem-outfile "$CLIENT_CERTS_DIR_2/device.pem.crt" \
+  --public-key-outfile "$CLIENT_CERTS_DIR_2/public.pem.key" \
+  --private-key-outfile "$CLIENT_CERTS_DIR_2/private.pem.key" \
+  > "$CLIENT_CERTS_DIR_2/create-cert.json"
+CLIENT_CERT_ARN_2=$(jq -r .certificateArn "$CLIENT_CERTS_DIR_2/create-cert.json")
+curl -sS https://www.amazontrust.com/repository/AmazonRootCA1.pem \
+  -o "$CLIENT_CERTS_DIR_2/AmazonRootCA1.pem"
+aws iot attach-policy \
+  --policy-name "${PROJECT_NAME}-${ENVIRONMENT}-client-policy" \
+  --target "$CLIENT_CERT_ARN_2"
+aws iot attach-thing-principal \
+  --thing-name "$CLIENT_THING_NAME_2" \
+  --principal "$CLIENT_CERT_ARN_2"
+echo "$CLIENT_CERT_ARN_2"
+```
+
+```text
+arn:aws:iot:ap-southeast-2:123456789012:cert/…
+```
+
+Repeat with `$CLIENT_THING_NAME_3` / `$CLIENT_CERTS_DIR_3` for a third zone.
+Associate and flash each board later with its own certs and Thing name.
+
+## 6. Greengrass service role
+
+Required for client-device identity checks and connectivity info under{" "}
+<Tooltip term="greengrass-v2" label="Greengrass V2" />.
+
+### Render trust policy and name the role
+
+Substitute account/region into the trust document:
+
+```bash frame="terminal"
+sed -e "s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" \
+    -e "s/\${AWS_REGION}/${AWS_REGION}/g" \
+    artifacts/policies/greengrass-service-role-trust.json \
+  > /tmp/gg-service-role-trust.json
+GG_SERVICE_ROLE="${PROJECT_NAME}-${ENVIRONMENT}-gg-service"
+echo "$GG_SERVICE_ROLE"
+```
+
+```text
+gg-edge-wt-dev-gg-service
+```
+
+### Create Greengrass service IAM role
+
+Account-level role for cloud-side Greengrass ops:
+
+```bash frame="terminal"
+aws iam create-role \
+  --role-name "$GG_SERVICE_ROLE" \
+  --assume-role-policy-document file:///tmp/gg-service-role-trust.json
+```
+
+```text
+{
+    "Role": {
+        "Path": "/",
+        "RoleName": "gg-edge-wt-dev-gg-service",
+        "RoleId": "AROAEXAMPLEGGSERVICE",
+        "Arn": "arn:aws:iam::123456789012:role/gg-edge-wt-dev-gg-service",
+        "CreateDate": "2026-10-04T10:34:50+00:00",
+        …
+    }
+}
+```
+
+### Attach managed access policy
+
+AWS’s `AWSGreengrassResourceAccessRolePolicy`; print the role ARN:
+
+```bash frame="terminal"
+aws iam attach-role-policy \
+  --role-name "$GG_SERVICE_ROLE" \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSGreengrassResourceAccessRolePolicy
+GG_SERVICE_ROLE_ARN=$(aws iam get-role --role-name "$GG_SERVICE_ROLE" --query Role.Arn --output text)
+echo "$GG_SERVICE_ROLE_ARN"
+```
+
+```text
+arn:aws:iam::123456789012:role/gg-edge-wt-dev-gg-service
+```
+
+### Associate role to the account
+
+```bash frame="terminal"
+aws greengrassv2 associate-service-role-to-account --role-arn "$GG_SERVICE_ROLE_ARN"
+```
+
+```text
+{
+    "associatedAt": "2026-10-04T10:35:08Z"
+}
+```
+
+### Confirm association
+
+```bash frame="terminal"
+aws greengrassv2 get-service-role-for-account
+```
+
+```text
+{
+    "associatedAt": "2026-10-04T10:35:08Z",
+    "roleArn": "arn:aws:iam::123456789012:role/gg-edge-wt-dev-gg-service"
+}
+```
+
+## Checkpoint
+
+### Describe core Thing
+
+```bash frame="terminal"
+aws iot describe-thing --thing-name "$CORE_THING_NAME"
+```
+
+```text
+{
+    "defaultClientId": "gg-edge-wt-dev-core",
+    "thingName": "gg-edge-wt-dev-core",
+    "thingId": "01234567-89ab-cdef-0123-456789abcdef",
+    "thingArn": "arn:aws:iot:ap-southeast-2:123456789012:thing/gg-edge-wt-dev-core",
+    "attributes": {},
+    "version": 1
+}
+```
+
+### Describe client Thing
+
+```bash frame="terminal"
+aws iot describe-thing --thing-name "$CLIENT_THING_NAME"
+```
+
+```text
+{
+    "defaultClientId": "gg-edge-wt-dev-esp32-1",
+    "thingName": "gg-edge-wt-dev-esp32-1",
+    "thingId": "fedcba98-7654-3210-fedc-ba9876543210",
+    "thingArn": "arn:aws:iot:ap-southeast-2:123456789012:thing/gg-edge-wt-dev-esp32-1",
+    "attributes": {},
+    "version": 1
+}
+```
+
+### Re-check service role
+
+```bash frame="terminal"
+aws greengrassv2 get-service-role-for-account
+```
+
+```text
+{
+    "associatedAt": "2026-10-04T10:35:08Z",
+    "roleArn": "arn:aws:iam::123456789012:role/gg-edge-wt-dev-gg-service"
+}
+```
+
+Next: [Prepare the core](/prepare-core/).

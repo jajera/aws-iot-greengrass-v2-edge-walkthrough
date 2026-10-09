@@ -1,0 +1,21 @@
+---
+description: Docs voice, layout, and authoring order
+globs: src/content/docs/**/*
+alwaysApply: false
+---
+
+# Docs and structure
+
+- Starlight under `src/content/docs/`. Imperative steps; call out **core** vs **client**.
+- Show raw AWS CLI; JSON under `artifacts/` via `file://`. No provision/deploy wrappers.
+- Import `Tooltip` and use `src/data/glossary.ts` on first useful occurrence (`label` required).
+- With `Tooltip` imported, use HTML `<table>` — pipe tables break in MDX with components.
+- Keep GFM tables valid only on pages without component imports.
+- **CLI presentation:** `bash frame="terminal"` then adjacent ` ```text ` result —
+  no “Looks like:” label. Split distinct AWS results; group basic setup
+  (install/export/mkdir/silent attach). Silent success → `(no output)`.
+- **Never put real AWS account IDs** (or live IoT endpoint host prefixes / STS ARNs)
+  in docs — placeholders: `123456789012`, `example123abc-ats…` (endpoint prefix
+  is opaque, not the account ID).
+
+See `.kiro/steering/docs-pattern.md`, `glossary.md`, `markdown-tables.md`, `structure.md`.

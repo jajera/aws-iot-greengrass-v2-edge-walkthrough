@@ -1,0 +1,168 @@
+---
+/**
+ * ProveLoopDiagram — sense → actuate path for the prove page.
+ * Icons from https://aws-icons.johna.kiwi/ under AWS Trademark Guidelines.
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  client: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+  mqtt: `${ICONS}/resource/iot/Res_AWS-IoT_MQTT_Protocol_48.svg`,
+  component: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Component_48.svg`,
+  core: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  iotCore: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+};
+---
+
+<figure class="pl not-content" aria-labelledby="pl-caption">
+  <div class="pl-flow">
+    <div class="pl-node pl-node--client">
+      <img src={img.client} alt="" width="40" height="40" loading="lazy" />
+      <span class="pl-name">ESP32-S3</span>
+      <span class="pl-sub">BOOT · chip temp</span>
+    </div>
+
+    <span class="pl-link" data-label="① gg-edge/sensor">→</span>
+
+    <div class="pl-node pl-node--hub">
+      <img src={img.core} alt="" width="40" height="40" loading="lazy" />
+      <span class="pl-name">NUC core</span>
+      <span class="pl-sub">
+        <img class="pl-ico" src={img.mqtt} alt="" width="14" height="14" loading="lazy" />
+        Moquette
+      </span>
+      <span class="pl-badge">
+        <img src={img.component} alt="" width="14" height="14" loading="lazy" />
+        GgEdgeLoop
+      </span>
+    </div>
+
+    <span class="pl-link" data-label="② gg-edge/actuator">→</span>
+
+    <div class="pl-node pl-node--client pl-node--out">
+      <img src={img.client} alt="" width="40" height="40" loading="lazy" />
+      <span class="pl-name">ESP32-S3</span>
+      <span class="pl-sub">RGB green / off</span>
+    </div>
+  </div>
+
+  <div class="pl-mirror">
+    <img src={img.iotCore} alt="" width="28" height="28" loading="lazy" />
+    <span>
+      Optional mirror: bridge → IoT Core on sensor / actuator (telemetry bridged in Act 2)
+    </span>
+  </div>
+
+  <figcaption id="pl-caption">
+    Button loop never needs the cloud. Telemetry streams on the LAN now; AWS
+    consumes it in Act 2.
+  </figcaption>
+</figure>
+
+<style>
+  .pl {
+    margin: 1.5rem 0;
+  }
+
+  .pl-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .pl-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    width: min(100%, 20rem);
+    padding: 0.75rem 0.65rem;
+    border-radius: 0.55rem;
+    border: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-gray-6);
+    text-align: center;
+  }
+
+  .pl-node--hub {
+    border-color: color-mix(in srgb, var(--sl-color-accent) 40%, var(--sl-color-gray-5));
+  }
+
+  .pl-name {
+    font-size: 0.85rem;
+    font-weight: 650;
+  }
+
+  .pl-sub {
+    font-size: 0.72rem;
+    color: var(--sl-color-gray-2);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .pl-badge {
+    margin-top: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.68rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sl-color-accent) 18%, transparent);
+    color: var(--sl-color-white);
+  }
+
+  .pl-ico {
+    display: inline-block;
+  }
+
+  /* "label ↓" between vertically stacked cards. The element's own text is the
+     inline → glyph — hide it and draw the label + down arrow via pseudos. */
+  .pl-link {
+    flex: 0 0 auto;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0;
+    font-size: 0;
+    line-height: 1;
+    color: var(--sl-color-accent);
+  }
+
+  .pl-link::before {
+    content: attr(data-label);
+    white-space: nowrap;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--sl-color-gray-2);
+  }
+
+  .pl-link::after {
+    content: "↓";
+    font-size: 1.1rem;
+    line-height: 1;
+    color: var(--sl-color-accent);
+  }
+
+  .pl-mirror {
+    margin-top: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.45rem;
+    border: 1px dashed var(--sl-color-gray-5);
+    font-size: 0.8rem;
+    color: var(--sl-color-gray-2);
+  }
+
+  figcaption {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--sl-color-gray-2);
+  }
+
+</style>

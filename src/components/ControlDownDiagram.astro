@@ -1,0 +1,179 @@
+---
+/**
+ * ControlDownDiagram — the ordered cloud-command (blue RGB) path, from a
+ * CloudWatch alarm down to the zone's RGB and the DynamoDB ack. Replaces a
+ * Mermaid sequenceDiagram that broke on <br/> / pipe chars in a message label,
+ * and matches the custom-diagram style used elsewhere in the lab.
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/, used under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  cw: `${ICONS}/service/management/Arch_Amazon-CloudWatch_64.svg`,
+  sns: `${ICONS}/service/integration/Arch_Amazon-Simple-Notification-Service_64.svg`,
+  lambda: `${ICONS}/service/compute/Arch_AWS-Lambda_64.svg`,
+  iot: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+  core: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  client: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+  ddb: `${ICONS}/service/database/Arch_Amazon-DynamoDB_64.svg`,
+};
+
+interface Hop {
+  icon: string;
+  title: string;
+  detail: string;
+  topic?: string;
+}
+
+const hops: Hop[] = [
+  { icon: img.cw, title: "CloudWatch alarm", detail: "ChipTempC metric breaches → ALARM" },
+  { icon: img.sns, title: "SNS topic", detail: "fans out to email + Lambda" },
+  { icon: img.lambda, title: "Lambda", detail: "publishes the command (blue)", topic: "gg-edge/cloud/command/<thing>" },
+  { icon: img.iot, title: "IoT Core → Bridge", detail: "CommandIotCoreToPubsub → Pubsub" },
+  { icon: img.core, title: "GgEdgeLoop", detail: "drives the actuator", topic: "gg-edge/actuator/<thing>" },
+  { icon: img.client, title: "ESP32-S3 zone", detail: "RGB turns blue" },
+  { icon: img.ddb, title: "DynamoDB", detail: "ack rule records the command", topic: "gg-edge/cloud/ack/<thing>" },
+];
+---
+
+<figure class="cd not-content" aria-labelledby="cd-caption">
+  <ol class="cd-flow">
+    {
+      hops.map((h, i) => (
+        <li class="cd-step">
+          <span class="cd-num">{i + 1}</span>
+          <img src={h.icon} alt="" width="30" height="30" loading="lazy" />
+          <span class="cd-body">
+            <span class="cd-title">{h.title}</span>
+            <span class="cd-detail">{h.detail}</span>
+            {h.topic && <code class="cd-topic">{h.topic}</code>}
+          </span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption id="cd-caption">
+    The down-path never blocks the LAN loop. To test it without waiting for an
+    alarm, publish straight to <code>gg-edge/cloud/command/&lt;thing&gt;</code>{" "}
+    — same bridge mapping and GgEdgeLoop handling.
+  </figcaption>
+</figure>
+
+<style>
+  .cd {
+    margin: 1.5rem 0;
+  }
+
+  .cd-flow {
+    list-style: none;
+    margin: 0;
+    padding: 1.1rem 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid color-mix(in oklab, #3b82f6 35%, var(--sl-color-hairline));
+    border-radius: 0.9rem;
+    background:
+      radial-gradient(
+        ellipse 90% 45% at 50% -8%,
+        color-mix(in oklab, #3b82f6 12%, transparent),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .cd-step {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.5rem 0.5rem;
+    min-width: 0;
+  }
+
+  /* connector line between steps — runs from under this badge to the next */
+  .cd-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 1.42rem;
+    top: 2rem;
+    bottom: -0.5rem;
+    width: 2px;
+    background: color-mix(in oklab, #3b82f6 55%, var(--sl-color-hairline));
+  }
+
+  .cd-num {
+    flex: 0 0 auto;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    border-radius: 999px;
+    font-family: var(--sl-font-headings);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #fff;
+    background: #3b82f6;
+  }
+
+  .cd-step img {
+    flex: 0 0 auto;
+    display: block;
+  }
+
+  .cd-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  .cd-title {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+  }
+
+  .cd-detail {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .cd-topic {
+    align-self: flex-start;
+    max-width: 100%;
+    margin-top: 0.1rem;
+    font-size: 0.64rem;
+    color: var(--sl-color-text-accent);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.25rem;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+  }
+
+  figcaption {
+    margin-top: 0.75rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.45;
+  }
+
+  figcaption code {
+    font-size: 0.85em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+    overflow-wrap: anywhere;
+  }
+</style>

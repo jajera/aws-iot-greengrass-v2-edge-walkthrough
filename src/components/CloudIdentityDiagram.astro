@@ -1,0 +1,421 @@
+---
+/**
+ * CloudIdentityDiagram — the IoT Core + IAM identities this page creates:
+ * core Thing (two policies + token exchange), Thing group, client Thing,
+ * and the account-level Greengrass service role.
+ *
+ * Icons are official AWS Architecture Icons served from
+ * https://aws-icons.johna.kiwi/, used under the AWS Trademark Guidelines:
+ * https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const img = {
+  iotCore: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+  greengrass: `${ICONS}/service/iot/Arch_AWS-IoT-Greengrass_64.svg`,
+  iam: `${ICONS}/service/security/Arch_AWS-Identity-and-Access-Management_64.svg`,
+  coreThing: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_Generic_48.svg`,
+  clientThing: `${ICONS}/resource/iot/Res_AWS-IoT_Thing_FreeRTOS-Device_48.svg`,
+  cert: `${ICONS}/resource/iot/Res_AWS-IoT_Certificate_48.svg`,
+  policy: `${ICONS}/resource/iot/Res_AWS-IoT_Policy_48.svg`,
+  role: `${ICONS}/resource/security/Res_AWS-Identity-Access-Management_Role_48.svg`,
+  tempCreds: `${ICONS}/resource/security/Res_AWS-Identity-Access-Management_Temporary-Security-Credential_48.svg`,
+};
+---
+
+<figure class="cid not-content" aria-labelledby="cid-caption">
+  <div class="cid-account">
+    <span class="cid-account-tag">AWS account</span>
+
+    <div class="cid-services">
+      {/* ---------- IoT Core ---------- */}
+      <section class="cid-service cid-service--iot">
+        <header class="cid-svc-head">
+          <img src={img.iotCore} alt="" width="36" height="36" loading="lazy" />
+          <span class="cid-svc-title">IoT Core</span>
+        </header>
+
+        {/* Core identity chain */}
+        <div class="cid-row">
+          <div class="cid-card cid-card--core">
+            <img src={img.coreThing} alt="" width="36" height="36" loading="lazy" />
+            <span class="cid-name">Thing · core</span>
+            <code>gg-edge-wt-dev-core</code>
+          </div>
+
+          <span class="cid-link" data-label="cert">→</span>
+
+          <div class="cid-card">
+            <img src={img.cert} alt="" width="36" height="36" loading="lazy" />
+            <span class="cid-name">Certificate</span>
+            <code>core cert</code>
+          </div>
+
+          <span class="cid-link" data-label="attach">→</span>
+
+          <div class="cid-policies">
+            <div class="cid-card cid-card--mini">
+              <img src={img.policy} alt="" width="28" height="28" loading="lazy" />
+              <span class="cid-name">core-policy</span>
+            </div>
+            <div class="cid-card cid-card--mini">
+              <img src={img.policy} alt="" width="28" height="28" loading="lazy" />
+              <span class="cid-name">token-exchange-policy</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Token exchange: the token-exchange-policy lets the core cert
+            assume the role alias, which maps to the IAM role. */}
+        <div class="cid-subhead">
+          <span class="cid-subhead-tag">token exchange</span>
+          <span class="cid-subhead-note">core cert → role alias → temp AWS creds</span>
+        </div>
+        <div class="cid-row">
+          <div class="cid-card cid-card--alias">
+            <img src={img.tempCreds} alt="" width="32" height="32" loading="lazy" />
+            <span class="cid-name">Role alias</span>
+            <code>gg-edge-wt-dev-token-alias</code>
+          </div>
+
+          <span class="cid-link" data-label="assume">→</span>
+
+          <div class="cid-card cid-card--role">
+            <img src={img.role} alt="" width="32" height="32" loading="lazy" />
+            <span class="cid-name">IAM role (temp creds)</span>
+            <code>gg-edge-wt-dev-token-exchange</code>
+          </div>
+        </div>
+
+        {/* Thing group targets the core for deployments */}
+        <div class="cid-subhead">
+          <span class="cid-subhead-tag">deployments</span>
+        </div>
+        <div class="cid-row">
+          <div class="cid-card cid-card--group">
+            <img src={img.greengrass} alt="" width="32" height="32" loading="lazy" />
+            <span class="cid-name">Thing group</span>
+            <code>gg-edge-wt-dev-cores</code>
+          </div>
+          <span class="cid-link" data-label="targets">←</span>
+          <div class="cid-card cid-card--core">
+            <img src={img.coreThing} alt="" width="32" height="32" loading="lazy" />
+            <span class="cid-name">core</span>
+          </div>
+        </div>
+
+        {/* Client identity chain (separate from the core) */}
+        <div class="cid-subhead">
+          <span class="cid-subhead-tag">client identity</span>
+          <span class="cid-subhead-note">separate Thing + cert</span>
+        </div>
+        <div class="cid-row cid-client-chain">
+          <div class="cid-card cid-card--client">
+            <img src={img.clientThing} alt="" width="36" height="36" loading="lazy" />
+            <span class="cid-name">Thing · client</span>
+            <code>gg-edge-wt-dev-esp32-1</code>
+          </div>
+          <span class="cid-link" data-label="cert">→</span>
+          <div class="cid-card">
+            <img src={img.cert} alt="" width="32" height="32" loading="lazy" />
+            <span class="cid-name">Certificate</span>
+          </div>
+          <span class="cid-link" data-label="attach">→</span>
+          <div class="cid-card cid-card--mini">
+            <img src={img.policy} alt="" width="28" height="28" loading="lazy" />
+            <span class="cid-name">client-policy</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- IAM / Greengrass ---------- */}
+      <section class="cid-service cid-service--iam">
+        <header class="cid-svc-head">
+          <img src={img.iam} alt="" width="36" height="36" loading="lazy" />
+          <span class="cid-svc-title">IAM / Greengrass</span>
+        </header>
+
+        <div class="cid-row">
+          <div class="cid-card cid-card--service-role">
+            <img src={img.role} alt="" width="36" height="36" loading="lazy" />
+            <span class="cid-name">Service role</span>
+            <code>gg-edge-wt-dev-gg-service</code>
+            <span class="cid-note">account association · cloud-side GG ops</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <figcaption id="cid-caption">
+    <ul>
+      <li>Core cert ≠ client cert.</li>
+      <li><strong>Token exchange is core-only</strong>: cert → role alias → IAM role → temp creds.</li>
+      <li>Service role is <strong>account-level</strong>, not on either Thing.</li>
+    </ul>
+  </figcaption>
+</figure>
+
+<style>
+  .cid {
+    margin: 1.5rem 0;
+  }
+
+  .cid-account {
+    position: relative;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.9rem;
+    padding: 1.5rem 1.1rem 1.1rem;
+    background:
+      radial-gradient(
+        ellipse 90% 55% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .cid-account-tag {
+    position: absolute;
+    top: -0.7rem;
+    left: 1rem;
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-invert);
+    background: var(--sl-color-accent);
+    padding: 0.15rem 0.6rem;
+    border-radius: 0.4rem;
+  }
+
+  .cid-services {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  /* ---- Service group boxes ---- */
+  .cid-service {
+    border: 1px dashed var(--sl-color-accent);
+    border-radius: 0.75rem;
+    padding: 0.9rem 0.8rem 0.8rem;
+    background: color-mix(in oklab, var(--sl-color-accent) 5%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .cid-svc-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .cid-svc-title {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-base);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  /* ---- Rows ---- */
+  .cid-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  /* ---- Sub-section headers inside a service group ---- */
+  .cid-subhead {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.3rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--sl-color-hairline-light);
+  }
+
+  .cid-subhead-tag {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+  }
+
+  .cid-subhead-note {
+    font-size: 0.68rem;
+    color: var(--sl-color-gray-3);
+  }
+
+  /* ---- Cards ---- */
+  .cid-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    text-align: center;
+    padding: 0.6rem 0.65rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.6rem;
+    background: var(--sl-color-bg);
+    min-width: 0;
+  }
+
+  .cid-card img {
+    display: block;
+  }
+
+  .cid-card--mini {
+    padding: 0.45rem 0.55rem;
+  }
+
+  .cid-card--core {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 45%, transparent);
+  }
+
+  .cid-card--client {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 35%, transparent);
+  }
+
+  .cid-card--role,
+  .cid-card--service-role {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
+  }
+
+  .cid-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  .cid-card code {
+    font-size: 0.68rem;
+    color: var(--sl-color-gray-3);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+    word-break: break-all;
+  }
+
+  .cid-note {
+    font-size: 0.68rem;
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+
+  .cid-policies {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  /* ---- Connectors: label stacked above the arrow, both in normal flow so
+     the gap column sizes to the (wider) label instead of overlapping cards. */
+  .cid-link {
+    flex: 0 0 auto;
+    align-self: center;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0 0.15rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  .cid-link::before {
+    content: attr(data-label);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--sl-color-text-accent);
+    white-space: nowrap;
+  }
+
+  /* ---- Wide layout: keep each chain on one line ---- */
+  @media (min-width: 50rem) {
+    .cid-row {
+      flex-wrap: nowrap;
+    }
+  }
+
+  /* ---- Narrow: stack chains vertically, arrows point down ---- */
+  @media (max-width: 49.99rem) {
+    .cid-row,
+    .cid-client-chain {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    /* Stacked: show "label ↓" centered between cards; hide the inline
+       → / ← glyph (font-size:0) and draw a down arrow via ::after. */
+    .cid-link {
+      flex-direction: row;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0;
+      font-size: 0;
+    }
+
+    .cid-link::before {
+      font-size: 0.65rem;
+    }
+
+    .cid-link::after {
+      content: "↓";
+      font-size: 1.05rem;
+      line-height: 1;
+      color: var(--sl-color-accent);
+    }
+
+    .cid-policies {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+  }
+
+  figcaption {
+    margin-top: 0.9rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+
+  figcaption ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  figcaption li {
+    position: relative;
+    padding-left: 1.1rem;
+    line-height: 1.4;
+  }
+
+  figcaption li::before {
+    content: "›";
+    position: absolute;
+    left: 0.2rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+  }
+
+  figcaption strong {
+    color: var(--sl-color-white);
+  }
+</style>

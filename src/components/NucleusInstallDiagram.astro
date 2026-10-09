@@ -1,0 +1,509 @@
+---
+/**
+ * NucleusInstallDiagram — what moves from the workstation to the NUC during a
+ * manual Nucleus install, the on-NUC install sequence, and the IoT Core mTLS
+ * connection that the workstation then verifies as HEALTHY.
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/ (general
+ * set has Light/Dark variants, swapped per theme in the script below), under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const gen = (name: string) => ({
+  dark: `${ICONS}/resource/general/Res_${name}_48_Dark.svg`,
+  light: `${ICONS}/resource/general/Res_${name}_48_Light.svg`,
+});
+
+const img = {
+  client: gen("Client"),
+  server: gen("Server"),
+  lang: gen("Programming-Language"),
+  doc: gen("Document"),
+  lock: gen("SSL-padlock"),
+  cert: `${ICONS}/resource/iot/Res_AWS-IoT_Certificate_48.svg`,
+  nucleus: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Component-Nucleus_48.svg`,
+  iotCore: `${ICONS}/service/iot/Arch_AWS-IoT-Core_64.svg`,
+};
+---
+
+<figure class="ni not-content" aria-labelledby="ni-caption">
+  {/* ---- Ship: workstation → NUC ---- */}
+  <div class="ni-ship">
+    <div class="ni-host ni-host--ws">
+      <header class="ni-host-head">
+        <img class="ni-ico" src={img.client.dark} data-light={img.client.light} alt="" width="34" height="34" loading="lazy" />
+        <div>
+          <span class="ni-host-title">Workstation</span>
+          <span class="ni-host-sub">has AWS CLI</span>
+        </div>
+      </header>
+      <div class="ni-chips">
+        <span class="ni-chip">
+          <img class="ni-ico-s" src={img.cert} alt="" width="18" height="18" loading="lazy" />
+          core certs
+        </span>
+        <span class="ni-chip">
+          <img class="ni-ico-s" src={img.doc.dark} data-light={img.doc.light} alt="" width="18" height="18" loading="lazy" />
+          <code>walkthrough.env</code>
+        </span>
+      </div>
+    </div>
+
+    <div class="ni-transfers">
+      <span class="ni-xfer" data-label="scp certs">→</span>
+      <span class="ni-xfer" data-label="endpoints · thing · role alias">→</span>
+    </div>
+
+    <div class="ni-host ni-host--nuc">
+      <header class="ni-host-head">
+        <img class="ni-ico" src={img.server.dark} data-light={img.server.light} alt="" width="34" height="34" loading="lazy" />
+        <div>
+          <span class="ni-host-title">NUC · nuc-gg-edge</span>
+          <span class="ni-host-sub">no AWS CLI</span>
+        </div>
+      </header>
+      <code class="ni-path">/greengrass/v2/certs/</code>
+    </div>
+  </div>
+
+  {/* ---- On-NUC install sequence ---- */}
+  <div class="ni-seq">
+    <span class="ni-seq-tag">install on the NUC</span>
+    <div class="ni-steps">
+      <div class="ni-step">
+        <img class="ni-ico" src={img.lang.dark} data-light={img.lang.light} alt="" width="30" height="30" loading="lazy" />
+        <span class="ni-step-name">OpenJDK 21 · Python 3.12</span>
+      </div>
+      <span class="ni-link" data-label="then">→</span>
+      <div class="ni-step">
+        <img class="ni-ico" src={img.doc.dark} data-light={img.doc.light} alt="" width="30" height="30" loading="lazy" />
+        <span class="ni-step-name">nucleus zip + config.yaml</span>
+        <code>--init-config</code>
+      </div>
+      <span class="ni-link" data-label="starts">→</span>
+      <div class="ni-step ni-step--svc">
+        <img class="ni-ico" src={img.nucleus} alt="" width="30" height="30" loading="lazy" />
+        <span class="ni-step-name">greengrass.service</span>
+        <code>Nucleus 2.18.x</code>
+      </div>
+    </div>
+  </div>
+
+  {/* ---- Cloud connection + verify ---- */}
+  <div class="ni-verify">
+    <div class="ni-node ni-node--nuc">
+      <img class="ni-ico ni-ico--lg" src={img.nucleus} alt="" width="38" height="38" loading="lazy" />
+      <span class="ni-name">Nucleus online</span>
+    </div>
+
+    <span class="ni-link ni-link--mtls" data-label="mTLS">
+      <img class="ni-ico-s" src={img.lock.dark} data-light={img.lock.light} alt="" width="16" height="16" loading="lazy" />
+      ↔
+    </span>
+
+    <div class="ni-node ni-node--cloud">
+      <img class="ni-ico ni-ico--lg" src={img.iotCore} alt="" width="38" height="38" loading="lazy" />
+      <span class="ni-name">AWS IoT Core</span>
+    </div>
+
+    <span class="ni-link" data-label="HEALTHY">←</span>
+
+    <div class="ni-node ni-node--ws">
+      <img class="ni-ico ni-ico--lg" src={img.client.dark} data-light={img.client.light} alt="" width="38" height="38" loading="lazy" />
+      <span class="ni-name">Workstation</span>
+      <code>get-core-device</code>
+    </div>
+  </div>
+
+  <figcaption id="ni-caption">
+    <ul>
+      <li>Workstation only ships certs + config over SSH.</li>
+      <li>NUC runs the install; <strong>no AWS CLI</strong> on it.</li>
+      <li>Nucleus ↔ IoT Core over mTLS.</li>
+      <li>Verify <strong>HEALTHY</strong> with <code>get-core-device</code>.</li>
+    </ul>
+  </figcaption>
+</figure>
+
+<style>
+  .ni {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  /* ---- Ship band ---- */
+  .ni-ship {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .ni-host {
+    flex: 1 1 13rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.85rem 0.8rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.7rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .ni-host--ws {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 40%, transparent);
+  }
+
+  .ni-host--nuc {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
+  }
+
+  .ni-host-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ni-host-head > div {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ni-host-title {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  .ni-host-sub {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+
+  .ni-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .ni-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    padding: 0.25rem 0.45rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.45rem;
+    background: var(--sl-color-bg);
+  }
+
+  .ni-path {
+    align-self: flex-start;
+  }
+
+  .ni-chip code,
+  .ni-path,
+  .ni-step code,
+  .ni-node code {
+    font-size: 0.7rem;
+    color: var(--sl-color-text-accent);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+
+  /* ---- Transfers (two stacked arrows between hosts) ---- */
+  .ni-transfers {
+    flex: 0 0 auto;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 0 0.1rem;
+  }
+
+  /* Shared connector: label stacked above the glyph, all in normal flow. */
+  .ni-xfer,
+  .ni-link {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .ni-xfer::before,
+  .ni-link::before {
+    content: attr(data-label);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--sl-color-text-accent);
+    max-width: 9rem;
+    line-height: 1.2;
+    white-space: normal;
+  }
+
+  /* ---- On-NUC sequence ---- */
+  .ni-seq {
+    border: 1px dashed var(--sl-color-accent);
+    border-radius: 0.75rem;
+    padding: 0.8rem;
+    background: color-mix(in oklab, var(--sl-color-accent) 5%, transparent);
+  }
+
+  .ni-seq-tag {
+    display: inline-block;
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+    margin-bottom: 0.6rem;
+  }
+
+  .ni-steps {
+    /* 3 install steps + "then"/"starts" labels never fit the content column
+       horizontally — stack them vertically with down-arrows. */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .ni-step {
+    width: min(100%, 20rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.65rem 0.6rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.6rem;
+    background: var(--sl-color-bg);
+  }
+
+  /* steps-band connectors read as "label ↓" between the stacked steps */
+  .ni-steps .ni-link {
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0;
+    font-size: 0;
+  }
+
+  .ni-steps .ni-link::before {
+    font-size: 0.6rem;
+  }
+
+  .ni-steps .ni-link::after {
+    content: "↓";
+    font-size: 1.05rem;
+    color: var(--sl-color-accent);
+  }
+
+  .ni-step--svc {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 40%, transparent);
+  }
+
+  .ni-step-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  /* ---- Verify flow ---- */
+  .ni-verify {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 1.05rem 0.9rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.8rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .ni-node {
+    flex: 1 1 9rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.8rem 0.65rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .ni-node--nuc {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
+  }
+
+  .ni-node--cloud {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
+  }
+
+  .ni-node--ws {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 40%, transparent);
+  }
+
+  .ni-link {
+    flex: 0 0 auto;
+    align-self: center;
+    padding: 0 0.15rem;
+  }
+
+  .ni-link--mtls {
+    flex-direction: column;
+  }
+
+  .ni-link--mtls .ni-ico-s {
+    display: block;
+  }
+
+  .ni-name {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+  }
+
+  .ni-ico {
+    display: block;
+  }
+
+  .ni-ico-s {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  /* ---- Narrow: stack everything, arrows read downward ---- */
+  @media (max-width: 46rem) {
+    .ni-ship,
+    .ni-steps,
+    .ni-verify {
+      flex-direction: column;
+    }
+
+    .ni-transfers {
+      flex-direction: row;
+      justify-content: center;
+      gap: 1.2rem;
+    }
+
+    .ni-host,
+    .ni-step,
+    .ni-node {
+      flex: 0 0 auto;
+    }
+
+    .ni-link {
+      flex-direction: row;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0;
+      font-size: 0; /* hide inline glyph; draw ↓ via ::after */
+    }
+
+    .ni-link::before {
+      font-size: 0.65rem;
+    }
+
+    .ni-link:not(.ni-link--mtls)::after {
+      content: "↓";
+      font-size: 1.05rem;
+      line-height: 1;
+      color: var(--sl-color-accent);
+    }
+
+    .ni-link--mtls {
+      font-size: 1.05rem;
+    }
+
+    .ni-link--mtls::before {
+      font-size: 0.65rem;
+    }
+  }
+
+  figcaption {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+
+  figcaption ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  figcaption li {
+    position: relative;
+    padding-left: 1.1rem;
+    line-height: 1.4;
+  }
+
+  figcaption li::before {
+    content: "›";
+    position: absolute;
+    left: 0.2rem;
+    color: var(--sl-color-accent);
+    font-weight: 700;
+  }
+
+  figcaption strong {
+    color: var(--sl-color-white);
+  }
+
+  figcaption code {
+    font-size: 0.82em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+</style>
+
+<script>
+  // Swap general-set icons (Dark ↔ Light) with the Starlight theme.
+  function applyIconTheme() {
+    const light = document.documentElement.dataset.theme === "light";
+    document
+      .querySelectorAll<HTMLImageElement>(".ni [data-light]")
+      .forEach((el) => {
+        if (!el.dataset.darkSrc) el.dataset.darkSrc = el.getAttribute("src") || "";
+        const target = light ? el.getAttribute("data-light") : el.dataset.darkSrc;
+        if (target && el.getAttribute("src") !== target) el.setAttribute("src", target);
+      });
+  }
+
+  applyIconTheme();
+  const obs = new MutationObserver(applyIconTheme);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  document.addEventListener("astro:after-swap", applyIconTheme);
+</script>

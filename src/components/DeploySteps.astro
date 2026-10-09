@@ -1,0 +1,165 @@
+---
+/**
+ * DeploySteps — the three steps on this page, in order. Overview rail above the
+ * step-by-step sections (matches the cloud / prepare-nuc / nucleus rails).
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/ (general
+ * set has Light/Dark variants, swapped per theme in the script below), under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const gen = (name: string) => ({
+  dark: `${ICONS}/resource/general/Res_${name}_48_Dark.svg`,
+  light: `${ICONS}/resource/general/Res_${name}_48_Light.svg`,
+});
+
+interface Step {
+  n: number;
+  icon?: string;
+  gen?: { dark: string; light: string };
+  title: string;
+  cli: string;
+}
+
+const steps: Step[] = [
+  { n: 1, gen: gen("Document"), title: "Prepare deployment doc", cli: "sed template → JSON" },
+  { n: 2, icon: `${ICONS}/group/iot/AWS-IoT-Greengrass-Deployment_32.svg`, title: "Create deployment", cli: "create-deployment" },
+  { n: 3, gen: gen("Magnifying-Glass"), title: "Verify RUNNING", cli: "list-installed-components" },
+];
+---
+
+<figure class="ds not-content" aria-labelledby="ds-caption">
+  <ol class="ds-rail">
+    {
+      steps.map((s) => (
+        <li class="ds-step">
+          <span class="ds-num">{s.n}</span>
+          {s.gen ? (
+            <img class="ds-ico" src={s.gen.dark} data-light={s.gen.light} alt="" width="30" height="30" loading="lazy" />
+          ) : (
+            <img class="ds-ico" src={s.icon} alt="" width="30" height="30" loading="lazy" />
+          )}
+          <span class="ds-title">{s.title}</span>
+          <code class="ds-cli">{s.cli}</code>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption id="ds-caption">
+    One Thing-group deployment installs Auth, Moquette, Bridge, and IPDetector.
+    <code>SUCCEEDED</code> on the core = all four <strong>RUNNING</strong>.
+  </figcaption>
+</figure>
+
+<style>
+  .ds {
+    margin: 1.5rem 0;
+  }
+
+  .ds-rail {
+    margin: 0;
+    padding: 1rem 0.9rem;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .ds-step {
+    flex: 1 1 9rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.75rem 0.6rem 0.7rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .ds-step img {
+    display: block;
+  }
+
+  .ds-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.3rem;
+    block-size: 1.3rem;
+    border-radius: 999px;
+    font-family: var(--sl-font-headings);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sl-color-text-invert);
+    background: var(--sl-color-accent);
+  }
+
+  .ds-title {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .ds-cli {
+    font-size: 0.62rem;
+    color: var(--sl-color-text-accent);
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.25rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+
+  figcaption {
+    margin-top: 0.9rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.5;
+  }
+
+  figcaption strong {
+    color: var(--sl-color-white);
+  }
+
+  figcaption code {
+    font-size: 0.82em;
+    background: var(--sl-color-bg-inline-code);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+</style>
+
+<script>
+  // Swap general-set icons (Dark ↔ Light) with the Starlight theme.
+  function applyIconTheme() {
+    const light = document.documentElement.dataset.theme === "light";
+    document.querySelectorAll<HTMLImageElement>(".ds-ico[data-light]").forEach((el) => {
+      if (!el.dataset.darkSrc) el.dataset.darkSrc = el.getAttribute("src") || "";
+      const target = light ? el.getAttribute("data-light") : el.dataset.darkSrc;
+      if (target && el.getAttribute("src") !== target) el.setAttribute("src", target);
+    });
+  }
+
+  applyIconTheme();
+  const obs = new MutationObserver(applyIconTheme);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  document.addEventListener("astro:after-swap", applyIconTheme);
+</script>

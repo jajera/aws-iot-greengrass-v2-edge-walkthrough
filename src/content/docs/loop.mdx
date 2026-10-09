@@ -1,0 +1,145 @@
+---
+title: Loop component
+description: Add greengrass-cli, then deploy com.example.GgEdgeLoop so button presses drive the zone RGB on the LAN.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Tooltip from "@/components/Tooltip.astro";
+import ComponentSteps from "@/components/ComponentSteps.astro";
+
+The custom <Tooltip term="component" label="component" />
+`com.example.GgEdgeLoop` subscribes to <Tooltip term="pubsub" label="pubsub" />{" "}
+topic `gg-edge/sensor` and publishes JSON commands on `gg-edge/actuator/<thing>`.
+The{" "}
+<Tooltip term="mqtt-bridge" label="MQTT bridge" /> maps those topics to{" "}
+<Tooltip term="moquette" label="Moquette" /> (
+<Tooltip term="esp32-s3" label="ESP32-S3" />) and{" "}
+<Tooltip term="iot-core" label="IoT Core" />.
+
+Manual Nucleus install does **not** include{" "}
+<Tooltip term="greengrass-cli" label="greengrass-cli" /> — add Cli in a cloud
+deployment that **keeps** Auth / Moquette / Bridge / IPDetector (a new deployment
+to the Thing group replaces the previous root set).
+
+This page deploys the loop **locally** to prove the LAN path first. After
+[Prove the LAN loop](/prove-lan/), [Deploy from the cloud](/deploy-cloud/) replaces it
+with a cloud-registered version from S3.
+
+Steps on this page:
+
+<ComponentSteps />
+
+## 1. Deploy greengrass-cli (cloud)
+
+### Render deployment JSON (client stack + Cli)
+
+```bash frame="terminal"
+CORE_THING_GROUP_ARN=$(aws iot describe-thing-group \
+  --thing-group-name "$CORE_THING_GROUP" \
+  --query thingGroupArn --output text)
+CLI_VER=$(aws greengrassv2 list-components --scope PUBLIC \
+  --query "components[?componentName=='aws.greengrass.Cli'].latestVersion.componentVersion" \
+  --output text)
+echo "Cli=$CLI_VER"
+sed -e "s|TARGET_THING_GROUP_ARN|${CORE_THING_GROUP_ARN}|g" \
+    -e "s|CLIENT_THING_PREFIX|${CLIENT_THING_PREFIX}|g" \
+    -e "s|CLI_COMPONENT_VERSION|${CLI_VER}|g" \
+    artifacts/deployments/client-device-support-with-cli.json \
+  > /tmp/gg-edge-with-cli.json
+aws greengrassv2 create-deployment \
+  --cli-input-json file:///tmp/gg-edge-with-cli.json
+```
+
+```text
+Cli=2.18.3
+{
+    "deploymentId": "2ab5a9fe-c150-4ec8-aa4e-2de4e4d67ecc"
+}
+```
+
+Wait until `list-effective-deployments` shows **SUCCEEDED**, then on the NUC:
+
+```bash frame="terminal"
+sudo /greengrass/v2/bin/greengrass-cli -V
+```
+
+```text
+Greengrass CLI Version: 2.18.3
+```
+
+## 2. Copy recipe and artifact on the NUC
+
+Requires `awsiotsdk` on the NUC (installed in [Install Nucleus](/nucleus/)).
+Without it, `com.example.GgEdgeLoop` goes **BROKEN**
+(`ModuleNotFoundError: awsiot`).
+
+Preferred: keep a checkout of this repo on the NUC, then copy into `/opt/gg-edge`
+(SSH/`scp` from the workstation also works).
+
+On the **NUC** (repo root of the checkout):
+
+```bash frame="terminal"
+sudo mkdir -p /opt/gg-edge/recipes \
+  /opt/gg-edge/artifacts/com.example.GgEdgeLoop/1.0.1
+sudo cp artifacts/components/recipes/com.example.GgEdgeLoop-1.0.1.yaml \
+  /opt/gg-edge/recipes/
+sudo cp artifacts/components/artifacts/com.example.GgEdgeLoop/1.0.1/loop.py \
+  /opt/gg-edge/artifacts/com.example.GgEdgeLoop/1.0.1/
+```
+
+```text
+(no output)
+```
+
+For **local** deploy, Nucleus reads artifacts from `--artifactDir`. The recipe’s
+`s3://` URI is used later when you [ship it from the cloud](/deploy-cloud/).
+
+## 3. Local deploy with greengrass-cli
+
+Still on the NUC:
+
+```bash frame="terminal"
+sudo /greengrass/v2/bin/greengrass-cli deployment create \
+  --recipeDir /opt/gg-edge/recipes \
+  --artifactDir /opt/gg-edge/artifacts \
+  --merge "com.example.GgEdgeLoop=1.0.1"
+```
+
+```text
+Local deployment submitted! Deployment Id: …
+```
+
+## 4. Verify
+
+### List components
+
+```bash frame="terminal"
+sudo /greengrass/v2/bin/greengrass-cli component list
+```
+
+```text
+Component Name: com.example.GgEdgeLoop
+    Version: 1.0.1
+    State: RUNNING
+…
+```
+
+### Tail component log
+
+```bash frame="terminal"
+sudo tail -f /greengrass/v2/logs/com.example.GgEdgeLoop.log
+```
+
+```text
+… subscribed to gg-edge/sensor
+```
+
+Expect a log line that the component subscribed to `gg-edge/sensor`.
+
+<Aside type="note">
+Do not deploy Cli alone to the Thing group — that removes Moquette and Auth.
+Always include the client-device components (see
+<code>client-device-support-with-cli.json</code>).
+</Aside>
+
+Next: [Flash zones](/flash/).

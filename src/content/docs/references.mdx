@@ -1,0 +1,51 @@
+---
+title: AWS docs
+description: Official AWS documentation for Greengrass V2, IoT rules, and the services this lab uses.
+---
+
+import Tooltip from "@/components/Tooltip.astro";
+
+## Core path
+
+- [What is AWS IoT Greengrass?](https://docs.aws.amazon.com/greengrass/v2/developerguide/what-is-iot-greengrass.html)
+- [Install AWS IoT Greengrass Core software](https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html)
+  — <Tooltip term="nucleus" label="Nucleus" /> install overview
+- [Manual resource provisioning](https://docs.aws.amazon.com/greengrass/v2/developerguide/manual-installation.html)
+- [Connect client devices to core devices](https://docs.aws.amazon.com/greengrass/v2/developerguide/connect-client-devices.html)
+  — <Tooltip term="client-device" label="client devices" />,{" "}
+  <Tooltip term="moquette" label="Moquette" />, auth, bridge
+- [Device authentication and authorization](https://docs.aws.amazon.com/greengrass/v2/developerguide/device-auth.html)
+- [Greengrass discovery RESTful API](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-discover-api.html)
+  — <Tooltip term="discovery" label="discovery" />
+- [MQTT bridge component](https://docs.aws.amazon.com/greengrass/v2/developerguide/mqtt-bridge-component.html)
+  — <Tooltip term="mqtt-bridge" label="MQTT bridge" />
+- [Moquette MQTT broker component](https://docs.aws.amazon.com/greengrass/v2/developerguide/moquette-mqtt-broker-component.html)
+- [IP detector component](https://docs.aws.amazon.com/greengrass/v2/developerguide/ip-detector-component.html)
+  — <Tooltip term="ip-detector" label="IP detector" />
+- [Greengrass CLI](https://docs.aws.amazon.com/greengrass/v2/developerguide/gg-cli.html)
+  — <Tooltip term="greengrass-cli" label="greengrass-cli" />
+- [Create deployments](https://docs.aws.amazon.com/greengrass/v2/developerguide/create-deployments.html)
+- [Develop Greengrass components](https://docs.aws.amazon.com/greengrass/v2/developerguide/develop-greengrass-components.html)
+
+## Wire into AWS
+
+- [Log manager component](https://docs.aws.amazon.com/greengrass/v2/developerguide/log-manager-component.html)
+  and [monitor logs](https://docs.aws.amazon.com/greengrass/v2/developerguide/monitor-logs.html)
+- [Component recipe reference](https://docs.aws.amazon.com/greengrass/v2/developerguide/component-recipe-reference.html)
+  — artifact `Unarchive`, `{artifacts:decompressedPath}`
+- [IoT rules](https://docs.aws.amazon.com/iot/latest/developerguide/iot-rules.html)
+  and [substitution templates](https://docs.aws.amazon.com/iot/latest/developerguide/iot-substitution-templates.html)
+- Rule actions: [S3](https://docs.aws.amazon.com/iot/latest/developerguide/s3-rule-action.html),
+  [DynamoDBv2](https://docs.aws.amazon.com/iot/latest/developerguide/dynamodb-v2-rule-action.html),
+  [CloudWatch metric](https://docs.aws.amazon.com/iot/latest/developerguide/cloudwatch-metrics-rule-action.html)
+- [CloudWatch alarm actions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)
+- [SageMaker roles](https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html)
+- [Perform machine learning inference](https://docs.aws.amazon.com/greengrass/v2/developerguide/perform-machine-learning-inference.html)
+- [SageMaker Edge Manager end of life](https://docs.aws.amazon.com/sagemaker/latest/dg/edge-eol.html)
+  — do **not** use Edge Manager for new labs
+
+## This repo
+
+Behavioural claims verified in an account are recorded in
+`.kiro/steering/aws-source-lock.md`. Terms used in this lab:
+[Concepts](/concepts/).

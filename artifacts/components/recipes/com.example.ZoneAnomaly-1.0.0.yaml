@@ -1,0 +1,48 @@
+---
+RecipeFormatVersion: "2020-01-25"
+ComponentName: com.example.ZoneAnomaly
+ComponentVersion: "1.0.0"
+ComponentDescription: >-
+  Edge inference. Scores gg-edge/telemetry/<thing> with per-zone ONNX models
+  trained in SageMaker on the S3 telemetry archive. Publishes every score on
+  gg-edge/inference/<thing>; red actuator on/off when anomaly state flips.
+ComponentPublisher: jajera
+ComponentConfiguration:
+  DefaultConfiguration:
+    consecutive: 2
+    accessControl:
+      aws.greengrass.ipc.pubsub:
+        "com.example.ZoneAnomaly:pubsub:1":
+          policyDescription: Telemetry in; inference and actuator out
+          operations:
+            - aws.greengrass#SubscribeToTopic
+            - aws.greengrass#PublishToTopic
+          resources:
+            - "gg-edge/telemetry/+"
+            - "gg-edge/inference/*"
+            - "gg-edge/actuator/*"
+Manifests:
+  - Platform:
+      os: linux
+    Lifecycle:
+      Install:
+        Timeout: 900
+        Script: >-
+          python3 -m venv {work:path}/venv &&
+          {work:path}/venv/bin/pip install --no-cache-dir --quiet
+          onnxruntime==1.31.0 numpy==2.2.6 awsiotsdk==1.31.0
+      Run: >-
+        {work:path}/venv/bin/python -u {artifacts:path}/infer.py
+        --model-dir {artifacts:decompressedPath}/zone-anomaly-model
+        --consecutive {configuration:/consecutive}
+    Artifacts:
+      - URI: "s3://ARTIFACT_BUCKET/artifacts/com.example.ZoneAnomaly/1.0.0/infer.py"
+        Unarchive: NONE
+        Permission:
+          Read: OWNER
+          Execute: NONE
+      - URI: "s3://ARTIFACT_BUCKET/artifacts/com.example.ZoneAnomaly/1.0.0/zone-anomaly-model.zip"
+        Unarchive: ZIP
+        Permission:
+          Read: OWNER
+          Execute: NONE

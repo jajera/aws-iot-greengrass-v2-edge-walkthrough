@@ -1,0 +1,180 @@
+---
+/**
+ * NucleusSteps — the seven steps on this page, in order, with the host each
+ * runs on. Overview rail above the step-by-step sections (matches the cloud
+ * and prepare-nuc build-order rails).
+ *
+ * Official AWS Architecture Icons from https://aws-icons.johna.kiwi/ (general
+ * set has Light/Dark variants, swapped per theme in the script below), under
+ * the AWS Trademark Guidelines: https://aws.amazon.com/trademark-guidelines/
+ */
+const ICONS = "https://aws-icons.johna.kiwi/icons";
+
+const gen = (name: string) => ({
+  dark: `${ICONS}/resource/general/Res_${name}_48_Dark.svg`,
+  light: `${ICONS}/resource/general/Res_${name}_48_Light.svg`,
+});
+
+type Host = "ws" | "nuc" | "both";
+interface Step {
+  n: number;
+  /** single-file brand icon */
+  icon?: string;
+  /** general-set icon with theme variants */
+  gen?: { dark: string; light: string };
+  title: string;
+  host: Host;
+}
+
+const steps: Step[] = [
+  { n: 1, icon: `${ICONS}/resource/iot/Res_AWS-IoT_Certificate_48.svg`, title: "Copy core certs", host: "ws" },
+  { n: 2, gen: gen("Programming-Language"), title: "Host packages", host: "nuc" },
+  { n: 3, gen: gen("SSL-padlock"), title: "Place certificates", host: "nuc" },
+  { n: 4, gen: gen("Disk"), title: "Download installer", host: "nuc" },
+  { n: 5, gen: gen("Document"), title: "Endpoints + config.yaml", host: "nuc" },
+  { n: 6, icon: `${ICONS}/resource/iot/Res_AWS-IoT-Greengrass_Component-Nucleus_48.svg`, title: "Install (manual provision)", host: "nuc" },
+  { n: 7, gen: gen("Magnifying-Glass"), title: "Verify HEALTHY", host: "both" },
+];
+
+const hostLabel: Record<Host, string> = { ws: "workstation", nuc: "NUC", both: "NUC + workstation" };
+---
+
+<figure class="ns not-content" aria-labelledby="ns-caption">
+  <ol class="ns-rail">
+    {
+      steps.map((s) => (
+        <li class="ns-step">
+          <span class="ns-num">{s.n}</span>
+          {s.gen ? (
+            <img class="ns-ico" src={s.gen.dark} data-light={s.gen.light} alt="" width="30" height="30" loading="lazy" />
+          ) : (
+            <img class="ns-ico" src={s.icon} alt="" width="30" height="30" loading="lazy" />
+          )}
+          <span class="ns-title">{s.title}</span>
+          <span class={`ns-host ns-host--${s.host}`}>{hostLabel[s.host]}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <figcaption id="ns-caption">
+    Certs ship from the workstation; the install runs on the NUC. The NUC never
+    needs the AWS CLI — only the workstation does.
+  </figcaption>
+</figure>
+
+<style>
+  .ns {
+    margin: 1.5rem 0;
+  }
+
+  .ns-rail {
+    margin: 0;
+    padding: 1rem 0.9rem;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.85rem;
+    background:
+      radial-gradient(
+        ellipse 90% 60% at 50% -10%,
+        var(--patina-accent-soft),
+        transparent 70%
+      ),
+      var(--sl-color-bg-nav);
+  }
+
+  .ns-step {
+    flex: 1 1 7.5rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 0.75rem 0.55rem 0.7rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.65rem;
+    background: var(--sl-color-bg);
+  }
+
+  .ns-step img {
+    display: block;
+  }
+
+  .ns-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.3rem;
+    block-size: 1.3rem;
+    border-radius: 999px;
+    font-family: var(--sl-font-headings);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sl-color-text-invert);
+    background: var(--sl-color-accent);
+  }
+
+  .ns-title {
+    font-family: var(--sl-font-headings);
+    font-weight: 700;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-white);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .ns-host {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+  }
+
+  /* workstation vs NUC colour-coded so the host split is obvious at a glance */
+  .ns-host--ws {
+    color: var(--sl-color-text-accent);
+    background: color-mix(in oklab, var(--sl-color-accent) 16%, transparent);
+  }
+
+  .ns-host--nuc {
+    color: var(--sl-color-gray-2);
+    background: color-mix(in oklab, var(--sl-color-gray-4) 22%, transparent);
+  }
+
+  .ns-host--both {
+    color: var(--sl-color-text-accent);
+    background: color-mix(in oklab, var(--sl-color-accent) 10%, transparent);
+    border: 1px dashed color-mix(in oklab, var(--sl-color-accent) 40%, transparent);
+    padding: 0.05rem 0.3rem;
+  }
+
+  figcaption {
+    margin-top: 0.9rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    line-height: 1.5;
+  }
+</style>
+
+<script>
+  // Swap general-set icons (Dark ↔ Light) with the Starlight theme.
+  function applyIconTheme() {
+    const light = document.documentElement.dataset.theme === "light";
+    document.querySelectorAll<HTMLImageElement>(".ns-ico[data-light]").forEach((el) => {
+      if (!el.dataset.darkSrc) el.dataset.darkSrc = el.getAttribute("src") || "";
+      const target = light ? el.getAttribute("data-light") : el.dataset.darkSrc;
+      if (target && el.getAttribute("src") !== target) el.setAttribute("src", target);
+    });
+  }
+
+  applyIconTheme();
+  const obs = new MutationObserver(applyIconTheme);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  document.addEventListener("astro:after-swap", applyIconTheme);
+</script>
