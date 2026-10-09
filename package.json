@@ -21,7 +21,7 @@
     "starlight-image-zoom": "^0.16.0"
   },
   "devDependencies": {
-    "typescript": "~5.9.3"
+    "typescript": "~7.0.2"
   },
   "overrides": {
     "esbuild": "^0.28.1",
