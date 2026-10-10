@@ -29,6 +29,30 @@ export default defineConfig({
         ThemeSelect: "./src/components/ThemeSelect.astro",
         Head: "./src/components/Head.astro",
       },
+      head: [
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image",
+            content: `${site}${base}og-image.png`,
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image:alt",
+            content:
+              "Greengrass V2 Edge Walkthrough — NUC core, ESP32 zones, AWS CLI",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "twitter:image",
+            content: `${site}${base}og-image.png`,
+          },
+        },
+      ],
       plugins: [starlightBasePath(), starlightImageZoom()],
       social: [
         {

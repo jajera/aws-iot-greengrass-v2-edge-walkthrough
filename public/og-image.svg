@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Greengrass V2 Edge Walkthrough">
+  <defs>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#22d3ee" fill-opacity="0.12"/>
+    </pattern>
+    <radialGradient id="glow" cx="18%" cy="0%" r="70%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.18"/>
+      <stop offset="60%" stop-color="#071014" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#071014"/>
+  <rect width="1200" height="630" fill="url(#dots)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <!-- favicon-style core ↔ client mark -->
+  <g transform="translate(72 96)" fill="none" stroke="#22d3ee" stroke-width="4">
+    <rect x="0.75" y="0.75" width="70.5" height="70.5" rx="14" stroke-opacity="0.45"/>
+    <circle cx="24" cy="36" r="8"/>
+    <circle cx="50" cy="36" r="8"/>
+    <path d="M32 36h10" stroke-linecap="round"/>
+  </g>
+  <text x="72" y="220" fill="#22d3ee" font-family="Noto Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" letter-spacing="0.06em">AWS IOT GREENGRASS V2</text>
+  <text x="72" y="300" fill="#eef8fa" font-family="Noto Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="52" font-weight="800">NUC core + ESP32 zones</text>
+  <text x="72" y="370" fill="#eef8fa" font-family="Noto Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="52" font-weight="800">then wire into AWS</text>
+  <text x="72" y="450" fill="#b7cdd4" font-family="Noto Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="26">LAN loop · cloud deploy · rules · alarm · edge inference</text>
+  <text x="72" y="560" fill="#5a7a86" font-family="Noto Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="20">aws-iot-greengrass-v2-edge-walkthrough.johna.kiwi</text>
+</svg>
