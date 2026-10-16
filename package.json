@@ -18,7 +18,7 @@
     "mermaid": "^11.17.2",
     "sharp": "^0.35.4",
     "starlight-base-path": "^0.2.1",
-    "starlight-image-zoom": "^0.16.0"
+    "starlight-image-zoom": "^0.16.2"
   },
   "devDependencies": {
     "typescript": "~5.9.3"
